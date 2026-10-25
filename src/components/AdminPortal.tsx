@@ -44,7 +44,6 @@ import {
   logout,
 } from '../services/authService.ts';
 import {
-  addCustomParish,
   createAdminEncounter,
   createAnnualParishBatch,
   deleteAdminEncounter,
@@ -117,12 +116,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [editingEncounter, setEditingEncounter] = useState<EpimEncounter | null>(null);
   const [showEncounterForm, setShowEncounterForm] = useState<boolean>(false);
   const [formYear, setFormYear] = useState<number>(2026);
-  const [formArciprestazgo, setFormArciprestazgo] = useState<string>(
-    MARACAIBO_ARCIPRESTAZGOS[0].nombre
-  );
-  const [formParroquia, setFormParroquia] = useState<string>(
-    MARACAIBO_ARCIPRESTAZGOS[0].parroquias[0]
-  );
+  const [formArciprestazgo, setFormArciprestazgo] = useState<string>('');
+  const [formParroquia, setFormParroquia] = useState<string>('');
   const [formFechas, setFormFechas] = useState<string[]>(['', '', '']);
   const [formHorario, setFormHorario] = useState<string>(DEFAULT_HORARIO);
   const [formSedeDetalle, setFormSedeDetalle] = useState<string>('');
@@ -139,12 +134,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
   // Annual Parish Batch Builder State ("cargar por Parroquia los distintos EPIM de todo el año")
   const [batchYear, setBatchYear] = useState<number>(2026);
-  const [batchArciprestazgo, setBatchArciprestazgo] = useState<string>(
-    MARACAIBO_ARCIPRESTAZGOS[0].nombre
-  );
-  const [batchParroquia, setBatchParroquia] = useState<string>(
-    MARACAIBO_ARCIPRESTAZGOS[0].parroquias[0]
-  );
+  const [batchArciprestazgo, setBatchArciprestazgo] = useState<string>('');
+  const [batchParroquia, setBatchParroquia] = useState<string>('');
   const [batchTelefono, setBatchTelefono] = useState<string>('');
   const [batchCoordinadores, setBatchCoordinadores] = useState<string>('');
   const [batchItems, setBatchItems] = useState<AnnualParishBatchItem[]>([
@@ -170,8 +161,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     },
   ]);
 
-  // New Custom Parish Inline State
-  const [customParishName, setCustomParishName] = useState<string>('');
 
   // Reservations Filter
   const [resFilterEncounterId, setResFilterEncounterId] = useState<string>('todos');
@@ -311,18 +300,25 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }
   };
 
-  // Parroquias helper combining catalog + custom parishes
-  const getParroquiasForArciprestazgo = useCallback(
-    (arcNombre: string) => {
-      const base =
-        MARACAIBO_ARCIPRESTAZGOS.find((g) => g.nombre === arcNombre)?.parroquias || [];
-      const extra = (store?.customParishes || [])
-        .filter((cp) => cp.arciprestazgo === arcNombre)
-        .map((cp) => cp.parroquia);
-      return Array.from(new Set([...base, ...extra]));
-    },
-    [store?.customParishes]
-  );
+  // Official Parroquias strictly associated with the selected Arciprestazgo
+  const getParroquiasForArciprestazgo = useCallback((arcNombre: string) => {
+    if (!arcNombre) return [];
+    return (
+      MARACAIBO_ARCIPRESTAZGOS.find((g) => g.nombre === arcNombre)?.parroquias || []
+    );
+  }, []);
+
+  const adminArciprestazgoFilterOptions = useMemo(() => {
+    const set = new Set<string>(MARACAIBO_ARCIPRESTAZGOS.map((g) => g.nombre));
+    if (store) {
+      for (const enc of store.encounters) {
+        if (enc.year === selectedAdminYear && enc.arciprestazgo) {
+          set.add(enc.arciprestazgo);
+        }
+      }
+    }
+    return Array.from(set);
+  }, [store, selectedAdminYear]);
 
   // Metrics for selectedAdminYear
   const yearMetrics = useMemo(() => {
@@ -427,10 +423,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const openCreateEncounter = () => {
     setEditingEncounter(null);
     setFormYear(selectedAdminYear);
-    const defaultArc = MARACAIBO_ARCIPRESTAZGOS[0].nombre;
-    const defaultPar = getParroquiasForArciprestazgo(defaultArc)[0] || '';
-    setFormArciprestazgo(defaultArc);
-    setFormParroquia(defaultPar);
+    setFormArciprestazgo('');
+    setFormParroquia('');
     setFormFechas(['', '', '']);
     setFormHorario(DEFAULT_HORARIO);
     setFormSedeDetalle('');
@@ -480,6 +474,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
   const handleEncounterFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formArciprestazgo || !formParroquia) {
+      notify(
+        'error',
+        'Selecciona primero el Arciprestazgo y luego la Parroquia sede asociada.'
+      );
+      return;
+    }
     const cleanedDates = normalizeIndividualDates(formFechas);
     if (cleanedDates.length < 2) {
       notify(
@@ -620,6 +621,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   // Annual Parish Batch Submit
   const handleBatchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!batchArciprestazgo || !batchParroquia) {
+      notify(
+        'error',
+        'Selecciona primero el Arciprestazgo y luego la Parroquia sede asociada.'
+      );
+      return;
+    }
     const preparedItems: AnnualParishBatchItem[] = batchItems
       .map((item): AnnualParishBatchItem | null => {
         const normalized = normalizeIndividualDates(
@@ -1399,9 +1407,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs sm:text-sm text-zinc-900 focus:border-[#DC1F26] focus:outline-none"
                   >
                     <option value="todos">Todos los arciprestazgos</option>
-                    {MARACAIBO_ARCIPRESTAZGOS.map((g) => (
-                      <option key={g.nombre} value={g.nombre}>
-                        {g.nombre}
+                    {adminArciprestazgoFilterOptions.map((arc) => (
+                      <option key={arc} value={arc}>
+                        {arc}
                       </option>
                     ))}
                   </select>
@@ -1534,18 +1542,21 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
                     <div className="sm:col-span-2">
                       <label className="block text-xs font-semibold text-zinc-800">
-                        Arciprestazgo / Zona Pastoral *
+                        Arciprestazgo *
                       </label>
                       <select
+                        required
                         value={batchArciprestazgo}
                         onChange={(e) => {
                           const arc = e.target.value;
                           setBatchArciprestazgo(arc);
-                          const list = getParroquiasForArciprestazgo(arc);
-                          if (list.length > 0) setBatchParroquia(list[0]);
+                          setBatchParroquia('');
                         }}
-                        className="mt-1.5 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm"
+                        className="mt-1.5 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-[#DC1F26] focus:outline-none"
                       >
+                        <option value="" disabled>
+                          Seleccione un Arciprestazgo...
+                        </option>
                         {MARACAIBO_ARCIPRESTAZGOS.map((g) => (
                           <option key={g.nombre} value={g.nombre}>
                             {g.nombre}
@@ -1558,47 +1569,35 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
                       <label className="block text-xs font-semibold text-zinc-800">
-                        Parroquia Sede *
+                        Parroquia sede *
                       </label>
                       <select
+                        required
+                        disabled={!batchArciprestazgo}
                         value={batchParroquia}
                         onChange={(e) => setBatchParroquia(e.target.value)}
-                        className="mt-1.5 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm"
+                        className="mt-1.5 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-[#DC1F26] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400"
                       >
-                        {getParroquiasForArciprestazgo(batchArciprestazgo).map((p) => (
-                          <option key={p} value={p}>
-                            {p}
-                          </option>
-                        ))}
+                        {!batchArciprestazgo ? (
+                          <option value="">Primero seleccione un Arciprestazgo...</option>
+                        ) : (
+                          <>
+                            <option value="" disabled>
+                              Seleccione la Parroquia sede...
+                            </option>
+                            {getParroquiasForArciprestazgo(batchArciprestazgo).map((p) => (
+                              <option key={p} value={p}>
+                                {p}
+                              </option>
+                            ))}
+                          </>
+                        )}
                       </select>
-
-                      {/* Option to add unlisted parish to the selected Arciprestazgo */}
-                      <div className="mt-2 flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={customParishName}
-                          onChange={(e) => setCustomParishName(e.target.value)}
-                          placeholder="¿Otra parroquia? Escríbela aquí..."
-                          className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5 text-xs"
-                        />
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            if (!customParishName.trim()) return;
-                            const res = await addCustomParish(
-                              batchArciprestazgo,
-                              customParishName.trim()
-                            );
-                            setStore(res.store);
-                            setBatchParroquia(customParishName.trim());
-                            setCustomParishName('');
-                            notify('success', 'Parroquia añadida al catálogo del arciprestazgo.');
-                          }}
-                          className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 whitespace-nowrap shrink-0"
-                        >
-                          + Añadir
-                        </button>
-                      </div>
+                      <p className="mt-1.5 text-[11px] text-zinc-500">
+                        {batchArciprestazgo
+                          ? `${getParroquiasForArciprestazgo(batchArciprestazgo).length} parroquias asociadas al Arciprestazgo seleccionado.`
+                          : 'Al elegir un Arciprestazgo solo aparecerán sus parroquias asociadas.'}
+                      </p>
                     </div>
 
                     <div className="space-y-3">
@@ -2415,19 +2414,34 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 </div>
 
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-zinc-700">
+                  <label
+                    htmlFor="enc-form-arciprestazgo"
+                    className="block text-xs font-semibold text-zinc-700"
+                  >
                     Arciprestazgo *
                   </label>
                   <select
+                    id="enc-form-arciprestazgo"
+                    required
                     value={formArciprestazgo}
                     onChange={(e) => {
                       const arc = e.target.value;
                       setFormArciprestazgo(arc);
-                      const pList = getParroquiasForArciprestazgo(arc);
-                      if (pList.length > 0) setFormParroquia(pList[0]);
+                      setFormParroquia('');
                     }}
-                    className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2"
+                    className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-zinc-900 focus:border-[#DC1F26] focus:outline-none"
                   >
+                    <option value="" disabled>
+                      Seleccione un Arciprestazgo...
+                    </option>
+                    {formArciprestazgo &&
+                      !MARACAIBO_ARCIPRESTAZGOS.some(
+                        (g) => g.nombre === formArciprestazgo
+                      ) && (
+                        <option value={formArciprestazgo}>
+                          {formArciprestazgo} (registro anterior)
+                        </option>
+                      )}
                     {MARACAIBO_ARCIPRESTAZGOS.map((g) => (
                       <option key={g.nombre} value={g.nombre}>
                         {g.nombre}
@@ -2438,22 +2452,48 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-zinc-700">
-                  Parroquia Sede *
+                <label
+                  htmlFor="enc-form-parroquia"
+                  className="block text-xs font-semibold text-zinc-700"
+                >
+                  Parroquia sede *
                 </label>
-                <input
-                  type="text"
-                  list="parroquias-datalist"
+                <select
+                  id="enc-form-parroquia"
                   required
+                  disabled={!formArciprestazgo}
                   value={formParroquia}
                   onChange={(e) => setFormParroquia(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2"
-                />
-                <datalist id="parroquias-datalist">
-                  {getParroquiasForArciprestazgo(formArciprestazgo).map((p) => (
-                    <option key={p} value={p} />
-                  ))}
-                </datalist>
+                  className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-zinc-900 focus:border-[#DC1F26] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400"
+                >
+                  {!formArciprestazgo ? (
+                    <option value="">Primero seleccione un Arciprestazgo...</option>
+                  ) : (
+                    <>
+                      <option value="" disabled>
+                        Seleccione la Parroquia sede...
+                      </option>
+                      {formParroquia &&
+                        !getParroquiasForArciprestazgo(formArciprestazgo).includes(
+                          formParroquia
+                        ) && (
+                          <option value={formParroquia}>
+                            {formParroquia} (registro anterior)
+                          </option>
+                        )}
+                      {getParroquiasForArciprestazgo(formArciprestazgo).map((p) => (
+                        <option key={p} value={p}>
+                          {p}
+                        </option>
+                      ))}
+                    </>
+                  )}
+                </select>
+                <p className="mt-1 text-[11px] text-zinc-500">
+                  {formArciprestazgo
+                    ? `${getParroquiasForArciprestazgo(formArciprestazgo).length} parroquias asociadas a ${formArciprestazgo}.`
+                    : 'Elige primero el Arciprestazgo para desplegar únicamente sus parroquias asociadas.'}
+                </p>
               </div>
 
               {/* Individual Dates Builder (Fecha 1, Fecha 2, Fecha 3...) */}

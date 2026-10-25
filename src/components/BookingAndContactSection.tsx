@@ -657,10 +657,13 @@ export const BookingAndContactSection: React.FC<BookingAndContactSectionProps> =
                     <select
                       id="inq-arc"
                       value={arciprestazgoInteres}
-                      onChange={(e) => setArciprestazgoInteres(e.target.value)}
+                      onChange={(e) => {
+                        setArciprestazgoInteres(e.target.value);
+                        setParroquiaInteres('');
+                      }}
                       className="mt-1.5 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-[#DC1F26] focus:outline-none"
                     >
-                      <option value="">Seleccionar zona pastoral...</option>
+                      <option value="">Seleccionar Arciprestazgo...</option>
                       {MARACAIBO_ARCIPRESTAZGOS.map((g) => (
                         <option key={g.nombre} value={g.nombre}>
                           {g.nombre}
@@ -672,14 +675,30 @@ export const BookingAndContactSection: React.FC<BookingAndContactSectionProps> =
                     <label htmlFor="inq-par" className="block text-xs font-semibold text-zinc-800">
                       Parroquia de procedencia (opcional)
                     </label>
-                    <input
+                    <select
                       id="inq-par"
-                      type="text"
+                      disabled={!arciprestazgoInteres}
                       value={parroquiaInteres}
                       onChange={(e) => setParroquiaInteres(e.target.value)}
-                      placeholder="Nombre de la parroquia"
-                      className="mt-1.5 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-[#DC1F26] focus:outline-none"
-                    />
+                      className="mt-1.5 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-[#DC1F26] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400"
+                    >
+                      {!arciprestazgoInteres ? (
+                        <option value="">Primero selecciona un Arciprestazgo...</option>
+                      ) : (
+                        <>
+                          <option value="">Seleccionar Parroquia...</option>
+                          {(
+                            MARACAIBO_ARCIPRESTAZGOS.find(
+                              (g) => g.nombre === arciprestazgoInteres
+                            )?.parroquias || []
+                          ).map((p) => (
+                            <option key={p} value={p}>
+                              {p}
+                            </option>
+                          ))}
+                        </>
+                      )}
+                    </select>
                   </div>
                 </div>
 

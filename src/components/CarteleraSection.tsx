@@ -15,6 +15,7 @@ import {
   formatMonthName,
   formatSingleDateEs,
   getEncounterDates,
+  getShortZoneLabel,
   MARACAIBO_ARCIPRESTAZGOS,
   MONTHS_ES,
 } from '../data/maracaiboCatalog.ts';
@@ -414,7 +415,7 @@ export const CarteleraSection: React.FC<CarteleraSectionProps> = ({
                       </span>
                       <span aria-hidden="true">·</span>
                       <span className="truncate max-w-[220px]" title={enc.arciprestazgo}>
-                        {enc.arciprestazgo.split('·')[0].trim()}
+                        {getShortZoneLabel(enc.arciprestazgo)}
                       </span>
                     </div>
 
