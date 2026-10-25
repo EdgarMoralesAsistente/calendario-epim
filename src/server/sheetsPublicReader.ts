@@ -1,6 +1,19 @@
-import type { EpimEncounter, EpimStore, Inquiry, Reservation } from '../types/epim';
-import { parseDatesFromSheet } from '../data/maracaiboCatalog';
-import { extractSpreadsheetId } from '../services/sheetsService';
+import type { EpimEncounter, EpimStore, Inquiry, Reservation } from '../types/epim.js';
+import { parseDatesFromSheet } from '../data/maracaiboCatalog.js';
+import { extractSpreadsheetId } from '../services/sheetsService.js';
+
+function cleanCellValue(val: string | undefined, fallback = ''): string {
+  const trimmed = (val || '').trim();
+  if (
+    !trimmed ||
+    trimmed.startsWith('#ERROR') ||
+    trimmed.startsWith('#NAME') ||
+    trimmed.startsWith('#VALUE')
+  ) {
+    return fallback;
+  }
+  return trimmed;
+}
 
 /**
  * Parses an RFC-4180 CSV string (including quoted fields, commas, and multiline cells)
@@ -160,9 +173,9 @@ export async function fetchStoreFromPublicSheet(
         horario:
           row[7]?.trim() ||
           'Sábados 2:30 p.m. – 6:00 p.m. · Domingo cierre 8:30 a.m. – 1:00 p.m.',
-        sedeDetalle: row[8]?.trim() || '',
-        telefonoContacto: row[9]?.trim() || '',
-        coordinadores: row[10]?.trim() || '',
+        sedeDetalle: cleanCellValue(row[8]),
+        telefonoContacto: cleanCellValue(row[9]),
+        coordinadores: cleanCellValue(row[10]),
         cuposTotales: Math.max(1, Number(row[11]) || 25),
         cuposReservados: Math.max(0, Number(row[12]) || 0),
         aporteInfo: row[14]?.trim() || '',
@@ -252,10 +265,13 @@ export async function fetchStoreFromPublicSheet(
       authorizedAdmins: Array.from(adminSet),
       spreadsheetId,
       spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`,
-      secretariadoTelefono:
-        configMap.get('secretariadoTelefono') || fallbackStore.config.secretariadoTelefono,
+      secretariadoTelefono: cleanCellValue(
+        configMap.get('secretariadoTelefono'),
+        cleanCellValue(fallbackStore.config.secretariadoTelefono, '+58 414-6184520')
+      ),
       secretariadoCorreo:
-        configMap.get('secretariadoCorreo') || fallbackStore.config.secretariadoCorreo,
+        cleanCellValue(configMap.get('secretariadoCorreo')) ||
+        fallbackStore.config.secretariadoCorreo,
       secretariadoDireccion:
         configMap.get('secretariadoDireccion') ||
         fallbackStore.config.secretariadoDireccion,

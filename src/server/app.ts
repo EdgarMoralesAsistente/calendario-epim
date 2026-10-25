@@ -6,7 +6,7 @@ import {
   createInitialStore,
   formatEncounterDatesEs,
   normalizeIndividualDates,
-} from '../data/maracaiboCatalog';
+} from '../data/maracaiboCatalog.js';
 import type {
   AnnualParishBatchItem,
   EpimEncounter,
@@ -14,13 +14,13 @@ import type {
   Inquiry,
   PublicBoardResponse,
   Reservation,
-} from '../types/epim';
+} from '../types/epim.js';
 import {
   extractSpreadsheetId,
   pullStoreFromSpreadsheet,
   pushStoreToSpreadsheet,
-} from '../services/sheetsService';
-import { fetchStoreFromPublicSheet } from './sheetsPublicReader';
+} from '../services/sheetsService.js';
+import { fetchStoreFromPublicSheet } from './sheetsPublicReader.js';
 
 dotenv.config();
 
@@ -29,12 +29,14 @@ const DATA_DIR = process.env.VERCEL
   : path.resolve(process.cwd(), 'data');
 const DATA_FILE = path.join(DATA_DIR, 'epim-store.json');
 
+const FALLBACK_PASTORAL_SHEET_ID = '1fi0tziUAv-_Qt0Sop6INgQQuawPFGh6U7dyxpX6TxWc';
+
 const ENV_SPREADSHEET_ID = extractSpreadsheetId(
   process.env.GOOGLE_SHEET_ID ||
     process.env.GOOGLE_SHEETS_URL ||
     process.env.SPREADSHEET_ID ||
     process.env.VITE_DEFAULT_SPREADSHEET_ID ||
-    ''
+    FALLBACK_PASTORAL_SHEET_ID
 );
 
 function loadStore(): EpimStore {
@@ -49,6 +51,12 @@ function loadStore(): EpimStore {
         if (ENV_SPREADSHEET_ID && !parsed.config.spreadsheetId) {
           parsed.config.spreadsheetId = ENV_SPREADSHEET_ID;
           parsed.config.spreadsheetUrl = `https://docs.google.com/spreadsheets/d/${ENV_SPREADSHEET_ID}/edit`;
+        }
+        if (
+          !parsed.config.secretariadoTelefono ||
+          parsed.config.secretariadoTelefono.startsWith('#ERROR')
+        ) {
+          parsed.config.secretariadoTelefono = '+58 414-6184520';
         }
         return parsed;
       }
@@ -933,6 +941,19 @@ export function createApiApp() {
       res.json(store);
     }
   );
+
+  // Express global JSON error fallback
+  app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+    console.error('API Unhandled Error:', err);
+    if (!res.headersSent) {
+      res.status(500).json({
+        error:
+          err instanceof Error
+            ? err.message
+            : 'Error interno del servidor al procesar la solicitud.',
+      });
+    }
+  });
 
   return app;
 }

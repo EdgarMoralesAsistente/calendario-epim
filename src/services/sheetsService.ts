@@ -1,8 +1,16 @@
-import type { EpimEncounter, EpimStore, Inquiry, Reservation } from '../types/epim';
+import type { EpimEncounter, EpimStore, Inquiry, Reservation } from '../types/epim.js';
 import {
   parseDatesFromSheet,
   serializeDatesForSheet,
-} from '../data/maracaiboCatalog';
+} from '../data/maracaiboCatalog.js';
+
+function cleanFormulaError(val: string | undefined, fallback = ''): string {
+  const trimmed = (val || '').trim();
+  if (!trimmed || trimmed.startsWith('#ERROR') || trimmed.startsWith('#NAME') || trimmed.startsWith('#VALUE')) {
+    return fallback;
+  }
+  return trimmed;
+}
 
 const SHEETS_BASE_URL = 'https://sheets.googleapis.com/v4/spreadsheets';
 
@@ -268,7 +276,7 @@ export async function pushStoreToSpreadsheet(
     ['publicYear', String(store.config.publicYear)],
     ['availableYears', store.config.availableYears.join(',')],
     ['authorizedAdmins', store.config.authorizedAdmins.join(',')],
-    ['secretariadoTelefono', store.config.secretariadoTelefono],
+    ['secretariadoTelefono', cleanFormulaError(store.config.secretariadoTelefono, '+58 414-6184520')],
     ['secretariadoCorreo', store.config.secretariadoCorreo],
     ['secretariadoDireccion', store.config.secretariadoDireccion],
     ['lastSyncedAt', syncedAt],
@@ -300,7 +308,7 @@ export async function pushStoreToSpreadsheet(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        valueInputOption: 'USER_ENTERED',
+        valueInputOption: 'RAW',
         data: [
           { range: `${REQUIRED_TABS.ENCUENTROS}!A1`, values: encuentrosRows },
           { range: `${REQUIRED_TABS.RESERVACIONES}!A1`, values: reservacionesRows },
@@ -391,7 +399,7 @@ export async function pullStoreFromSpreadsheet(
         fechas,
         horario: row[7] || 'Sábados 2:30 p.m. – 6:00 p.m. · Domingo cierre 8:30 a.m. – 1:00 p.m.',
         sedeDetalle: row[8] || '',
-        telefonoContacto: row[9] || '',
+        telefonoContacto: cleanFormulaError(row[9]),
         coordinadores: row[10] || '',
         cuposTotales: Math.max(1, Number(row[11]) || 25),
         cuposReservados: Math.max(0, Number(row[12]) || 0),
@@ -414,7 +422,7 @@ export async function pullStoreFromSpreadsheet(
       nombreNovia: row[7] || '',
       nombreNovio: row[8] || '',
       documentoIdentidad: row[9] || '',
-      telefonoPareja: row[10] || '',
+      telefonoPareja: cleanFormulaError(row[10]),
       correoPareja: row[11] || '',
       parroquiaMatrimonio: row[12] || '',
       fechaPrevistaBoda: row[13] || '',
