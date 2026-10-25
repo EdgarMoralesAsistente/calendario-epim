@@ -1,0 +1,6 @@
+{
+  "name": "EPIM Arquidiócesis de Maracaibo",
+  "description": "Cartelera interactiva, reservación de cupos y gestión administrativa de los Encuentros de Preparación Inmediata al Matrimonio (EPIM) del Secretariado de Pastoral Familiar de la Arquidiócesis de Maracaibo.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
