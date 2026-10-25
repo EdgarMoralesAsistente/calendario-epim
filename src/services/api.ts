@@ -30,6 +30,12 @@ async function adminHeaders(): Promise<Record<string, string>> {
       // Fallback to accessToken verification on server
     }
   }
+  if (typeof window !== 'undefined') {
+    const savedSheetId = window.localStorage.getItem('epim_connected_spreadsheet_id');
+    if (savedSheetId) {
+      headers['X-Preferred-Spreadsheet-Id'] = savedSheetId;
+    }
+  }
   return headers;
 }
 

@@ -1,4 +1,4 @@
-import type { EpimStore } from '../types/epim.ts';
+import type { EpimStore } from '../types/epim';
 
 export const LOGO_URL_PRIMARY =
   'https://res.cloudinary.com/djvpapwvq/image/upload/v1789603448/Logo_del_Secretariado_de_Pastoral_Familiar_Sin_fondo_nffmht.png';

@@ -1,8 +1,8 @@
-import type { EpimEncounter, EpimStore, Inquiry, Reservation } from '../types/epim.ts';
+import type { EpimEncounter, EpimStore, Inquiry, Reservation } from '../types/epim';
 import {
   parseDatesFromSheet,
   serializeDatesForSheet,
-} from '../data/maracaiboCatalog.ts';
+} from '../data/maracaiboCatalog';
 
 const SHEETS_BASE_URL = 'https://sheets.googleapis.com/v4/spreadsheets';
 

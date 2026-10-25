@@ -5,10 +5,12 @@ import {
   CalendarPlus,
   CalendarRange,
   CheckCircle2,
+  Copy,
   Download,
   Edit3,
   ExternalLink,
   FileSpreadsheet,
+  FileText,
   Inbox,
   LayoutDashboard,
   LogOut,
@@ -61,6 +63,7 @@ import {
 } from '../services/sheetsService.ts';
 import { GoogleSignInButton } from './GoogleSignInButton.tsx';
 import { ConfirmModal } from './ConfirmModal.tsx';
+import { AdminReportsSection } from './AdminReportsSection.tsx';
 
 interface AdminPortalProps {
   onBackToPublic: () => void;
@@ -71,6 +74,7 @@ type AdminSection =
   | 'resumen'
   | 'encuentros'
   | 'carga-parroquial'
+  | 'informes'
   | 'reservaciones'
   | 'consultas'
   | 'sheets';
@@ -182,6 +186,19 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [secDir, setSecDir] = useState<string>('');
 
   const [logoSrc, setLogoSrc] = useState<string>(LOGO_URL_PRIMARY);
+  const [copiedTokenLabel, setCopiedTokenLabel] = useState<string | null>(null);
+
+  const copyTextToClipboard = async (value: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedTokenLabel(label);
+      setTimeout(() => {
+        setCopiedTokenLabel((prev) => (prev === label ? null : prev));
+      }, 2500);
+    } catch {
+      // Ignore clipboard permission errors
+    }
+  };
 
   const loadAdminData = useCallback(async () => {
     setLoadingStore(true);
@@ -192,7 +209,19 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       setSelectedAdminYear(data.config.publicYear);
       setFormYear(data.config.publicYear);
       setBatchYear(data.config.publicYear);
-      setSheetInputUrl(data.config.spreadsheetUrl || data.config.spreadsheetId || '');
+      const rememberedId =
+        typeof window !== 'undefined'
+          ? window.localStorage.getItem('epim_connected_spreadsheet_id') || ''
+          : '';
+      if (data.config.spreadsheetId && typeof window !== 'undefined') {
+        window.localStorage.setItem(
+          'epim_connected_spreadsheet_id',
+          data.config.spreadsheetId
+        );
+      }
+      setSheetInputUrl(
+        data.config.spreadsheetUrl || data.config.spreadsheetId || rememberedId
+      );
       setSecTel(data.config.secretariadoTelefono);
       setSecEmail(data.config.secretariadoCorreo);
       setSecDir(data.config.secretariadoDireccion);
@@ -234,9 +263,21 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         await loadAdminData();
       }
     } catch (err) {
-      setAuthError(
-        err instanceof Error ? err.message : 'No se pudo completar el inicio de sesión con Google.'
-      );
+      const rawMsg =
+        err instanceof Error
+          ? err.message
+          : 'No se pudo completar el inicio de sesión con Google.';
+      if (rawMsg.includes('auth/popup-closed-by-user')) {
+        setAuthError(
+          'Cerraste la ventana de Google antes de terminar. Haz clic nuevamente en "Iniciar sesión con Google".'
+        );
+      } else if (rawMsg.includes('auth/popup-blocked')) {
+        setAuthError(
+          'Tu navegador bloqueó la ventana emergente de Google. Permite las ventanas emergentes en la barra de direcciones y vuelve a intentarlo.'
+        );
+      } else {
+        setAuthError(rawMsg);
+      }
     } finally {
       setAuthLoading(false);
     }
@@ -660,6 +701,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           const token = await getAccessToken();
           if (!token) throw new Error('Sesión de Google no disponible. Vuelve a iniciar sesión.');
           const created = await createEpimSpreadsheet(token, store);
+          if (typeof window !== 'undefined') {
+            window.localStorage.setItem(
+              'epim_connected_spreadsheet_id',
+              created.spreadsheetId
+            );
+          }
           const updated = await updateAdminConfig({
             spreadsheetId: created.spreadsheetId,
             spreadsheetUrl: created.spreadsheetUrl,
@@ -681,26 +728,29 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     if (!store) return;
     const id = extractSpreadsheetId(sheetInputUrl || store.config.spreadsheetId);
     if (!id) {
-      notify('error', 'Pega el enlace o ID de una hoja de cálculo de Google Sheets.');
+      notify('error', 'Pega el enlace completo de tu archivo de Google Sheets en el recuadro.');
       return;
     }
 
     setPendingConfirm({
-      title: '¿Actualizar datos en Google Sheets?',
+      title: '¿Conectar y guardar datos en este Google Sheet?',
       description:
-        'Se escribirán los encuentros, cupos, reservaciones y consultas actuales en la hoja de cálculo seleccionada en Google Sheets.',
+        'El sistema creará automáticamente las 4 pestañas necesarias (Encuentros, Reservaciones, Consultas y Configuracion) dentro de tu archivo de Google Sheets y guardará la programación actual.',
       details: [
-        `ID Hoja: ${id}`,
-        `Encuentros a sincronizar: ${store.encounters.length}`,
+        `ID detectado: ${id}`,
+        `Encuentros a guardar: ${store.encounters.length}`,
         `Reservaciones registradas: ${store.reservations.length}`,
       ],
-      confirmLabel: 'Confirmar y sincronizar',
+      confirmLabel: 'Conectar y guardar en Google Sheets',
       action: async () => {
         setSheetsBusy(true);
         try {
           const token = await getAccessToken();
           if (!token) throw new Error('Sesión de Google expirada. Inicia sesión nuevamente.');
           const result = await pushStoreToSpreadsheet(id, token, store);
+          if (typeof window !== 'undefined') {
+            window.localStorage.setItem('epim_connected_spreadsheet_id', id);
+          }
           const updated = await updateAdminConfig({
             spreadsheetId: id,
             spreadsheetUrl: result.spreadsheetUrl,
@@ -710,7 +760,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           setStore(updated);
           setSheetInputUrl(result.spreadsheetUrl);
           onPublicDataChanged();
-          notify('success', 'Datos sincronizados hacia Google Sheets en tiempo real.');
+          notify(
+            'success',
+            'Tu archivo de Google Sheets quedó conectado y con todas sus pestañas creadas.'
+          );
         } finally {
           setSheetsBusy(false);
         }
@@ -729,7 +782,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setPendingConfirm({
       title: '¿Importar datos desde Google Sheets?',
       description:
-        'Se reemplazarán los encuentros, reservaciones y consultas del sistema con las filas actuales de la hoja de Google Sheets.',
+        'Se leerán las filas actuales de tu archivo en Google Sheets para actualizar la página web.',
       details: [`ID Hoja: ${id}`],
       confirmLabel: 'Importar desde Sheets',
       action: async () => {
@@ -738,6 +791,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           const token = await getAccessToken();
           if (!token) throw new Error('Sesión de Google expirada. Inicia sesión nuevamente.');
           const pulled = await pullStoreFromSpreadsheet(id, token, store);
+          if (typeof window !== 'undefined') {
+            window.localStorage.setItem('epim_connected_spreadsheet_id', id);
+          }
           const updated = await saveImportedSheetsData({
             encounters: pulled.encounters,
             reservations: pulled.reservations,
@@ -841,15 +897,69 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             Acceso exclusivo para coordinadores autorizados del Secretariado de Pastoral Familiar de la Arquidiócesis de Maracaibo para gestionar encuentros, cupos y sincronización con Google Sheets.
           </p>
 
-          {authError && (
-            <div className="mt-5 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 p-4 text-left text-xs text-[#DC1F26]">
-              <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
-              <div>
-                <p className="font-semibold">Acceso restringido</p>
-                <p className="mt-0.5">{authError}</p>
+          {authError &&
+            (authError.toLowerCase().includes('unauthorized-domain') ? (
+              <div className="mt-5 w-full rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-left text-xs text-zinc-800 space-y-3">
+                <div className="flex items-start gap-2.5">
+                  <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-[#DC1F26]" />
+                  <div>
+                    <p className="font-semibold text-zinc-900">
+                      Falta autorizar el dominio de esta web en Firebase (1 solo minuto)
+                    </p>
+                    <p className="mt-0.5 text-zinc-600 leading-relaxed">
+                      Por seguridad de Google, cuando publicas la página en Vercel debes autorizar su dirección una sola vez para permitir el botón de inicio de sesión:
+                    </p>
+                  </div>
+                </div>
+
+                {typeof window !== 'undefined' && (
+                  <div className="flex items-center justify-between gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2">
+                    <span className="font-mono text-xs font-semibold text-zinc-900 truncate">
+                      {window.location.hostname}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        copyTextToClipboard(window.location.hostname, 'domain')
+                      }
+                      className="inline-flex items-center gap-1 rounded-md bg-zinc-900 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-zinc-800 whitespace-nowrap shrink-0"
+                    >
+                      <Copy className="h-3 w-3" />
+                      {copiedTokenLabel === 'domain' ? 'Copiado' : 'Copiar dominio'}
+                    </button>
+                  </div>
+                )}
+
+                <ol className="list-decimal pl-4 space-y-1.5 text-zinc-700 leading-relaxed">
+                  <li>
+                    Haz clic arriba en <strong>Copiar dominio</strong>.
+                  </li>
+                  <li>
+                    Abre{' '}
+                    <a
+                      href="https://console.firebase.google.com/project/gmail-secretariado-de-pastoral/authentication/settings"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-semibold text-[#DC1F26] underline hover:text-[#B9191F]"
+                    >
+                      Configuración de Firebase (Dominios autorizados)
+                    </a>{' '}
+                    con tu correo <strong>lapastoralfamiliar.mcbo@gmail.com</strong>.
+                  </li>
+                  <li>
+                    Pulsa <strong>Agregar dominio</strong>, pega el dominio copiado y haz clic en <strong>Agregar</strong>. Luego vuelve aquí e inicia sesión.
+                  </li>
+                </ol>
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="mt-5 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 p-4 text-left text-xs text-[#DC1F26]">
+                <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                <div>
+                  <p className="font-semibold">Acceso restringido</p>
+                  <p className="mt-0.5">{authError}</p>
+                </div>
+              </div>
+            ))}
 
           <div className="mt-7">
             {loadingStore ? (
@@ -1013,6 +1123,19 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
               <button
                 type="button"
+                onClick={() => setActiveSection('informes')}
+                className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
+                  activeSection === 'informes'
+                    ? 'bg-[#FEF2F2] font-semibold text-[#DC1F26]'
+                    : 'text-zinc-700 hover:bg-zinc-50'
+                }`}
+              >
+                <FileText className="h-4 w-4 shrink-0" />
+                Informes PDF
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setActiveSection('reservaciones')}
                 className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
                   activeSection === 'reservaciones'
@@ -1170,17 +1293,27 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
                 {/* Breakdown by Arciprestazgo */}
                 <div className="rounded-xl border border-zinc-200 bg-white p-6">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
                     <h3 className="font-display text-base font-bold text-zinc-900">
                       Distribución por Arciprestazgo ({selectedAdminYear})
                     </h3>
-                    <button
-                      type="button"
-                      onClick={() => setActiveSection('carga-parroquial')}
-                      className="text-xs font-semibold text-[#DC1F26] hover:underline whitespace-nowrap shrink-0"
-                    >
-                      + Cargar fechas por parroquia
-                    </button>
+                    <div className="flex items-center gap-4 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setActiveSection('informes')}
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-700 hover:text-zinc-950 hover:underline whitespace-nowrap shrink-0"
+                      >
+                        <FileText className="h-3.5 w-3.5 text-[#DC1F26]" />
+                        Generar informe PDF
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveSection('carga-parroquial')}
+                        className="text-xs font-semibold text-[#DC1F26] hover:underline whitespace-nowrap shrink-0"
+                      >
+                        + Cargar fechas por parroquia
+                      </button>
+                    </div>
                   </div>
 
                   {yearMetrics.byArciprestazgo.length === 0 ? (
@@ -1231,7 +1364,15 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       Añade, edita fechas, ajusta la cantidad total de cupos o elimina encuentros.
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setActiveSection('informes')}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3.5 py-2 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 whitespace-nowrap shrink-0"
+                    >
+                      <FileText className="h-3.5 w-3.5 text-[#DC1F26]" />
+                      Informes PDF
+                    </button>
                     <button
                       type="button"
                       onClick={() => setActiveSection('carga-parroquial')}
@@ -2015,13 +2156,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   <div className="mt-5 space-y-4">
                     <div>
                       <label className="block text-xs font-semibold text-zinc-800">
-                        Enlace o ID de Google Sheets
+                        1. Pega aquí el enlace completo de tu archivo de Google Sheets
                       </label>
                       <input
                         type="text"
                         value={sheetInputUrl}
                         onChange={(e) => setSheetInputUrl(e.target.value)}
-                        placeholder="https://docs.google.com/spreadsheets/d/..."
+                        placeholder="https://docs.google.com/spreadsheets/d/1AbC.../edit"
                         className="mt-1.5 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:border-[#DC1F26] focus:outline-none"
                       />
                     </div>
@@ -2030,21 +2171,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       <button
                         type="button"
                         disabled={sheetsBusy}
-                        onClick={handleCreateNewSheet}
+                        onClick={handlePushToExistingSheet}
                         className="inline-flex items-center gap-1.5 rounded-lg bg-[#DC1F26] px-4 py-2.5 text-xs font-semibold text-white hover:bg-[#B9191F] disabled:opacity-50 whitespace-nowrap shrink-0"
                       >
-                        <FileSpreadsheet className="h-4 w-4" />
-                        Crear Nueva Hoja EPIM en Google Sheets
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={sheetsBusy}
-                        onClick={handlePushToExistingSheet}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-900 px-4 py-2.5 text-xs font-semibold text-white hover:bg-zinc-800 disabled:opacity-50 whitespace-nowrap shrink-0"
-                      >
                         <RefreshCw className="h-3.5 w-3.5" />
-                        Sincronizar hacia Google Sheets
+                        Conectar y guardar en mi Google Sheet
                       </button>
 
                       <button
@@ -2053,8 +2184,53 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         onClick={handlePullFromSheet}
                         className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 disabled:opacity-50 whitespace-nowrap shrink-0"
                       >
-                        Importar desde Google Sheets
+                        Importar datos desde Google Sheets
                       </button>
+
+                      <button
+                        type="button"
+                        disabled={sheetsBusy}
+                        onClick={handleCreateNewSheet}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 disabled:opacity-50 whitespace-nowrap shrink-0"
+                      >
+                        <FileSpreadsheet className="h-4 w-4" />
+                        O crear hoja nueva automáticamente
+                      </button>
+                    </div>
+
+                    {/* Non-technical 3-step guide for Google Sheets + Vercel */}
+                    <div className="rounded-xl border border-zinc-200 bg-zinc-50/70 p-4 text-xs text-zinc-700 space-y-2.5">
+                      <p className="font-semibold text-zinc-900">
+                        Cómo dejar tu Google Sheet funcionando 24/7 en Vercel (paso a paso sencillo):
+                      </p>
+                      <ol className="list-decimal pl-4 space-y-1.5 leading-relaxed">
+                        <li>
+                          Pega arriba el enlace de tu archivo de Google Sheets y pulsa{' '}
+                          <strong>Conectar y guardar en mi Google Sheet</strong> (esto crea solo las pestañas <em>Encuentros</em>, <em>Reservaciones</em>, <em>Consultas</em> y <em>Configuracion</em>).
+                        </li>
+                        <li>
+                          En tu archivo de Google Sheets, haz clic arriba a la derecha en el botón{' '}
+                          <strong>Compartir</strong>: en <em>Acceso general</em> cambia &ldquo;Restringido&rdquo; por{' '}
+                          <strong>Cualquier persona con el enlace → Lector</strong>. (Así los fieles ven la cartelera, pero nadie más puede modificarla).
+                        </li>
+                        <li>
+                          En tu panel de <strong>Vercel</strong> entra a <em>Settings → Environment Variables</em>, añade una variable llamada{' '}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              copyTextToClipboard('GOOGLE_SHEET_ID', 'env_key')
+                            }
+                            className="inline-flex items-center gap-1 font-mono font-semibold text-zinc-900 underline"
+                          >
+                            GOOGLE_SHEET_ID
+                            <Copy className="h-3 w-3" />
+                          </button>{' '}
+                          {copiedTokenLabel === 'env_key' && (
+                            <span className="text-emerald-700 font-semibold">(copiado) </span>
+                          )}
+                          y en su valor pega el mismo enlace de tu Google Sheet. Luego pulsa <em>Save</em> y <em>Redeploy</em>.
+                        </li>
+                      </ol>
                     </div>
                   </div>
                 </div>
@@ -2195,6 +2371,15 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   </div>
                 </div>
               </div>
+            )}
+
+            {/* 7. GENERADOR DE INFORMES PDF */}
+            {activeSection === 'informes' && (
+              <AdminReportsSection
+                store={store}
+                defaultYear={selectedAdminYear}
+                onNotify={notify}
+              />
             )}
           </div>
         </div>
