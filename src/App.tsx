@@ -17,6 +17,8 @@ import { PublicHeader } from './components/PublicHeader.tsx';
 import { CarteleraSection } from './components/CarteleraSection.tsx';
 import { CalendarSection } from './components/CalendarSection.tsx';
 import { BookingAndContactSection } from './components/BookingAndContactSection.tsx';
+import { ParishRegistrationPromoSection } from './components/ParishRegistrationPromoSection.tsx';
+import { EcclesiasticalEndorsementSection } from './components/EcclesiasticalEndorsementSection.tsx';
 import { AdminPortal } from './components/AdminPortal.tsx';
 
 function detectAdminRouteFromLocation(): boolean {
@@ -350,8 +352,14 @@ export default function App() {
         </main>
       )}
 
+      <ParishRegistrationPromoSection />
+
+      <EcclesiasticalEndorsementSection
+        onExploreApprovedEncounters={() => handleNavigateSection('cartelera')}
+      />
+
       {/* Clean Institutional Footer with Pastoral Admin Access */}
-      <footer className="bg-white py-10">
+      <footer className="bg-zinc-50/40 py-10">
         <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-6 px-4 sm:flex-row sm:items-center sm:px-6 lg:px-8">
           <div>
             <div className="font-display text-sm font-bold text-zinc-900">
@@ -382,6 +390,26 @@ export default function App() {
               className="hover:text-zinc-900 whitespace-nowrap shrink-0"
             >
               Calendario
+            </a>
+            <a
+              href="#registrar-epim"
+              onClick={(e) => {
+                e.preventDefault();
+                handleNavigateSection('registrar-epim');
+              }}
+              className="hover:text-zinc-900 whitespace-nowrap shrink-0"
+            >
+              Registrar EPIM Parroquial
+            </a>
+            <a
+              href="#aval-arquidiocesano"
+              onClick={(e) => {
+                e.preventDefault();
+                handleNavigateSection('aval-arquidiocesano');
+              }}
+              className="hover:text-zinc-900 whitespace-nowrap shrink-0"
+            >
+              Aval Arquidiocesano
             </a>
             <button
               type="button"
