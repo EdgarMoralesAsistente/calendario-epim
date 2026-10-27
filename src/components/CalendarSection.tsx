@@ -8,7 +8,9 @@ import {
   formatMonthName,
   formatSingleDateEs,
   getEncounterDates,
+  getShortArciprestazgoLabel,
   MONTHS_ES,
+  normalizeParroquiaName,
 } from '../data/maracaiboCatalog.ts';
 
 interface CalendarSectionProps {
@@ -293,11 +295,11 @@ export const CalendarSection: React.FC<CalendarSectionProps> = ({
                         </span>
                         <span> · {getEncounterDates(enc).length} fechas</span>
                         <span> · </span>
-                        <span>{enc.arciprestazgo.split('·')[0].trim()}</span>
+                        <span>{getShortArciprestazgoLabel(enc.arciprestazgo)}</span>
                       </div>
 
                       <h4 className="mt-1 font-display text-sm font-semibold text-zinc-900">
-                        {enc.parroquia}
+                        {normalizeParroquiaName(enc.parroquia)}
                       </h4>
                       <p className="mt-0.5 text-xs text-zinc-600">{enc.horario}</p>
 

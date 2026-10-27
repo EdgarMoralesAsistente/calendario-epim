@@ -1,5 +1,10 @@
 import type { EpimEncounter, EpimStore, Inquiry, Reservation } from '../types/epim.js';
-import { parseDatesFromSheet } from '../data/maracaiboCatalog.js';
+import {
+  MARACAIBO_ARCIPRESTAZGOS,
+  normalizeArciprestazgoName,
+  normalizeParroquiaName,
+  parseDatesFromSheet,
+} from '../data/maracaiboCatalog.js';
 import { extractSpreadsheetId } from '../services/sheetsService.js';
 
 function cleanCellValue(val: string | undefined, fallback = ''): string {
@@ -161,8 +166,9 @@ export async function fetchStoreFromPublicSheet(
       return {
         id: row[0]?.trim() || `epim-sheet-${idx + 1}`,
         year: Number(row[1]) || resolvedPublicYear,
-        arciprestazgo: row[2]?.trim() || 'Zona Pastoral 1 · Casco Histórico y Central',
-        parroquia: row[3]?.trim() || '',
+        arciprestazgo:
+          normalizeArciprestazgoName(row[2]) || MARACAIBO_ARCIPRESTAZGOS[0].nombre,
+        parroquia: normalizeParroquiaName(row[3]),
         mes: Math.min(
           12,
           Math.max(1, Number(row[4]) || Number(firstInicio.split('-')[1]) || 1)
@@ -191,15 +197,15 @@ export async function fetchStoreFromPublicSheet(
       codigoReserva: row[1]?.trim() || `EPIM-${idx + 1000}`,
       encounterId: row[2]?.trim() || '',
       year: Number(row[3]) || resolvedPublicYear,
-      parroquiaEpim: row[4]?.trim() || '',
-      arciprestazgo: row[5]?.trim() || '',
+      parroquiaEpim: normalizeParroquiaName(row[4]),
+      arciprestazgo: normalizeArciprestazgoName(row[5]),
       fechasEpim: row[6]?.trim() || '',
       nombreNovia: row[7]?.trim() || '',
       nombreNovio: row[8]?.trim() || '',
       documentoIdentidad: row[9]?.trim() || '',
       telefonoPareja: row[10]?.trim() || '',
       correoPareja: row[11]?.trim() || '',
-      parroquiaMatrimonio: row[12]?.trim() || '',
+      parroquiaMatrimonio: row[12]?.trim() ? normalizeParroquiaName(row[12]) : '',
       fechaPrevistaBoda: row[13]?.trim() || '',
       observaciones: row[14]?.trim() || '',
       estado: row[15]?.trim() === 'cancelada' ? 'cancelada' : 'confirmada',
@@ -222,8 +228,8 @@ export async function fetchStoreFromPublicSheet(
         rolRemitente: validRoles.includes(rol) ? rol : 'Pareja de novios',
         telefono: row[3]?.trim() || '',
         correo: row[4]?.trim() || '',
-        arciprestazgoInteres: row[5]?.trim() || '',
-        parroquiaInteres: row[6]?.trim() || '',
+        arciprestazgoInteres: row[5]?.trim() ? normalizeArciprestazgoName(row[5]) : '',
+        parroquiaInteres: row[6]?.trim() ? normalizeParroquiaName(row[6]) : '',
         mensaje: row[7]?.trim() || '',
         estado: row[8]?.trim() === 'atendida' ? 'atendida' : 'pendiente',
         createdAt: row[9]?.trim() || new Date().toISOString(),

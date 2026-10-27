@@ -21,137 +21,232 @@ export const MONTHS_ES: { value: number; label: string; short: string }[] = [
 
 export interface ArciprestazgoGroup {
   nombre: string;
-  zonaCorta: string;
+  nombreCorto: string;
   parroquias: string[];
 }
 
 export const MARACAIBO_ARCIPRESTAZGOS: ArciprestazgoGroup[] = [
   {
-    nombre: 'Zona 1. Ntra. Sra. de Chiquinquirá',
-    zonaCorta: 'Zona 1',
+    nombre: 'Arciprestazgo 1. Ntra. Sra. de Chiquinquirá',
+    nombreCorto: 'Arciprestazgo 1',
     parroquias: [
-      'Basílica Ntra. Sra. de Chiquinquirá y San Juan de Dios',
-      'El Sagrario La Catedral de los Santos Apóstoles Pedro y Pablo',
-      'Ntra. Sra. de la Asunción',
-      'Ntra. Sra. de la Medalla Milagrosa',
-      'Santa Bárbara',
-      'Santa Lucía',
-      'Santo Cristo de Aranza',
+      'Parroquia Basílica Ntra. Sra. de Chiquinquirá y San Juan de Dios',
+      'Parroquia El Sagrario La Catedral de los Santos Apóstoles Pedro y Pablo',
+      'Parroquia Ntra. Sra. de la Asunción',
+      'Parroquia Ntra. Sra. de la Medalla Milagrosa',
+      'Parroquia Santa Bárbara',
+      'Parroquia Santa Lucía',
+      'Parroquia Santo Cristo de Aranza',
     ],
   },
   {
-    nombre: 'Zona 2. Sagrado Corazón de Jesús',
-    zonaCorta: 'Zona 2',
+    nombre: 'Arciprestazgo 2. Sagrado Corazón de Jesús',
+    nombreCorto: 'Arciprestazgo 2',
     parroquias: [
-      'Ntra. Sra. de la Consolación',
-      'Ntra. Sra. de las Mercedes',
-      'Ntra. Sra. del Perpetuo Socorro',
-      'Ntra. Sra. del Rosario',
-      'Sagrado Corazón de Jesús',
-      'San Alfonso María de Ligorio',
-      'San Antonio María Claret',
-      'San Benito de Palermo',
-      'San José, Maracaibo',
-      'San Judas Tadeo',
+      'Parroquia Ntra. Sra. de la Consolación',
+      'Parroquia Ntra. Sra. de las Mercedes',
+      'Parroquia Ntra. Sra. del Perpetuo Socorro',
+      'Parroquia Ntra. Sra. del Rosario',
+      'Parroquia Sagrado Corazón de Jesús',
+      'Parroquia San Alfonso María de Ligorio',
+      'Parroquia San Antonio María Claret',
+      'Parroquia San Benito de Palermo',
+      'Parroquia San José, Maracaibo',
+      'Parroquia San Judas Tadeo',
     ],
   },
   {
-    nombre: 'Zona 3. La Sagrada Familia',
-    zonaCorta: 'Zona 3',
+    nombre: 'Arciprestazgo 3. La Sagrada Familia',
+    nombreCorto: 'Arciprestazgo 3',
     parroquias: [
-      'La Sagrada Familia. Urb. San Miguel',
-      'Niña María',
-      'Ntra. Sra. de Lourdes. Maracaibo',
-      'Ntra. Sra. del Carmen. Maracaibo',
-      'San Ignacio de Loyola',
-      'San Martín de Porres',
-      'San Miguel Arcángel',
-      'San Pedro Apóstol',
-      'Santa Teresita del Niño Jesús. Amparo',
+      'Parroquia La Sagrada Familia. Urb. San Miguel',
+      'Parroquia Niña María',
+      'Parroquia Ntra. Sra. de Lourdes. Maracaibo',
+      'Parroquia Ntra. Sra. del Carmen. Maracaibo',
+      'Parroquia San Ignacio de Loyola',
+      'Parroquia San Martín de Porres',
+      'Parroquia San Miguel Arcángel',
+      'Parroquia San Pedro Apóstol',
+      'Parroquia Santa Teresita del Niño Jesús. Amparo',
     ],
   },
   {
-    nombre: 'Zona 4. Ntra. Sra. de Coromoto',
-    zonaCorta: 'Zona 4',
+    nombre: 'Arciprestazgo 4. Ntra. Sra. de Coromoto',
+    nombreCorto: 'Arciprestazgo 4',
     parroquias: [
-      'El Buen Pastor. Cuatricentenario',
-      'La Resurrección del Señor',
-      'Ntra. Sra. de Coromoto. Los Olivos',
-      'Ntra. Sra. de la Paz. La Victoria',
-      'Nuestro Señor Jesucristo Rey. La Curva',
-      'San Isidro Labrador. San Isidro',
-      'San Pablo Apóstol. La Rotaria',
-      'San Tarsicio',
-      'Santa Inés. Sector Indio Mara',
-      'Santa Mónica. La Concepción',
-      'Santísimo Sacramento. Las Lomas',
+      'Parroquia El Buen Pastor. Cuatricentenario',
+      'Parroquia La Resurrección del Señor',
+      'Parroquia Ntra. Sra. de Coromoto. Los Olivos',
+      'Parroquia Ntra. Sra. de la Paz. La Victoria',
+      'Parroquia Nuestro Señor Jesucristo Rey. La Curva',
+      'Parroquia San Isidro Labrador. San Isidro',
+      'Parroquia San Pablo Apóstol. La Rotaria',
+      'Parroquia San Tarsicio',
+      'Parroquia Santa Inés. Sector Indio Mara',
+      'Parroquia Santa Mónica. La Concepción',
+      'Parroquia Santísimo Sacramento. Las Lomas',
     ],
   },
   {
-    nombre: 'Zona 5. San Francisco de Asís',
-    zonaCorta: 'Zona 5',
+    nombre: 'Arciprestazgo 5. San Francisco de Asís',
+    nombreCorto: 'Arciprestazgo 5',
     parroquias: [
-      'Jesús Nazareno',
-      'Ntra. Sra. de Guadalupe',
-      'Ntra. Sra. de la Caridad del Cobre',
-      'San Felipe Neri',
-      'San Juan Bautista',
-      'Santa Mariana de Jesús. Sur América',
-      'Santísimo Cristo de San Francisco',
-      'Santísimo Salvador. El Callao',
-      'Santo Domingo de Guzmán',
-      'Transfiguración del Señor. Los Cortijos',
+      'Parroquia Jesús Nazareno',
+      'Parroquia Ntra. Sra. de Guadalupe',
+      'Parroquia Ntra. Sra. de la Caridad del Cobre',
+      'Parroquia San Felipe Neri',
+      'Parroquia San Juan Bautista',
+      'Parroquia Santa Mariana de Jesús. Sur América',
+      'Parroquia Santísimo Cristo de San Francisco',
+      'Parroquia Santísimo Salvador. El Callao',
+      'Parroquia Santo Domingo de Guzmán',
+      'Parroquia Transfiguración del Señor. Los Cortijos',
     ],
   },
   {
-    nombre: 'Zona 6. Ntra. Sra. de Fátima',
-    zonaCorta: 'Zona 6',
+    nombre: 'Arciprestazgo 6. Ntra. Sra. de Fátima',
+    nombreCorto: 'Arciprestazgo 6',
     parroquias: [
-      'La Santísima Trinidad',
-      'Ntra. Sra. de Fátima',
-      'Ntra. Sra. de la Candelaria',
-      'San Bartolomé. Ziruma',
-      'San Juan Bosco',
-      'San Onofre',
-      'San Ramón Nonato',
-      'Santa Rosa de Lima. Santa Rita de Casia',
+      'Parroquia La Santísima Trinidad',
+      'Parroquia Ntra. Sra. de Fátima',
+      'Parroquia Ntra. Sra. de la Candelaria',
+      'Parroquia San Bartolomé. Ziruma',
+      'Parroquia San Juan Bosco',
+      'Parroquia San Onofre',
+      'Parroquia San Ramón Nonato',
+      'Parroquia Santa Rosa de Lima. Santa Rita de Casia',
     ],
   },
   {
-    nombre: 'Zona 7. San Rafael del Moján',
-    zonaCorta: 'Zona 7',
+    nombre: 'Arciprestazgo 7. San Rafael del Moján',
+    nombreCorto: 'Arciprestazgo 7',
     parroquias: [
-      'El Sagrado Corazón de Jesús. Guarero',
-      'Jesús Redentor. Tamare',
-      'La Inmaculada Concepción. Carrasquero',
-      'María Auxiliadora (Santa Cruz de Mara)',
-      'Ntra. Sra. de Coromoto y San José Obrero (La Sierrita)',
-      'Ntra. Sra. de Lourdes. Isla de Toas',
-      'San Bartolomé Apóstol. Sinamaica',
-      'San José de Paraguaipoa',
-      'San Rafael Arcángel El Moján',
-      'Santa María. Guana',
+      'Parroquia El Sagrado Corazón de Jesús. Guarero',
+      'Parroquia Jesús Redentor. Tamare',
+      'Parroquia La Inmaculada Concepción. Carrasquero',
+      'Parroquia María Auxiliadora (Santa Cruz de Mara)',
+      'Parroquia Ntra. Sra. de Coromoto y San José Obrero (La Sierrita)',
+      'Parroquia Ntra. Sra. de Lourdes. Isla de Toas',
+      'Parroquia San Bartolomé Apóstol. Sinamaica',
+      'Parroquia San José de Paraguaipoa',
+      'Parroquia San Rafael Arcángel El Moján',
+      'Parroquia Santa María. Guana',
     ],
   },
   {
-    nombre: 'Zona 8. Inmaculada Concepción',
-    zonaCorta: 'Zona 8',
+    nombre: 'Arciprestazgo 8. Inmaculada Concepción',
+    nombreCorto: 'Arciprestazgo 8',
     parroquias: [
-      'La Inmaculada Concepción. La Cañada de Urdaneta',
-      'Ntra. Sra. de Chiquinquirá. La Ensenada',
-      'Ntra. Sra. del Carmen. El Carmelo. La Cañada de Urdaneta',
-      'Purísima Madre de Dios y San Benito de Palermo. El Bajo',
-      'San Antonio de Padua y Ntra. Sra. Virgen de los Parrales. La Cañada de Urdaneta',
+      'Parroquia La Inmaculada Concepción. La Cañada de Urdaneta',
+      'Parroquia Ntra. Sra. de Chiquinquirá. La Ensenada',
+      'Parroquia Ntra. Sra. del Carmen. El Carmelo. La Cañada de Urdaneta',
+      'Parroquia Purísima Madre de Dios y San Benito de Palermo. El Bajo',
+      'Parroquia San Antonio de Padua y Ntra. Sra. Virgen de los Parrales. La Cañada de Urdaneta',
     ],
   },
 ];
 
-export function getShortZoneLabel(arciprestazgo: string): string {
-  const found = MARACAIBO_ARCIPRESTAZGOS.find((g) => g.nombre === arciprestazgo);
-  if (found) return found.zonaCorta;
-  if (arciprestazgo.includes('·')) return arciprestazgo.split('·')[0].trim();
-  if (arciprestazgo.includes('.')) return arciprestazgo.split('.')[0].trim();
-  return arciprestazgo;
+/**
+ * Normalizes any legacy or externally stored arciprestazgo string so it always uses
+ * the official "Arciprestazgo N. ..." nomenclature (never legacy nomenclature).
+ */
+export function normalizeArciprestazgoName(raw?: string): string {
+  const trimmed = (raw || '').trim();
+  if (!trimmed) return '';
+
+  const exact = MARACAIBO_ARCIPRESTAZGOS.find(
+    (g) => g.nombre.toLowerCase() === trimmed.toLowerCase()
+  );
+  if (exact) return exact.nombre;
+
+  const numMatch = trimmed.match(/^(?:\S+(?:\s+pastoral)?|arciprestazgo)\s*([1-8])\b/i);
+  if (numMatch) {
+    const idx = Number(numMatch[1]) - 1;
+    if (MARACAIBO_ARCIPRESTAZGOS[idx]) {
+      return MARACAIBO_ARCIPRESTAZGOS[idx].nombre;
+    }
+  }
+
+  for (const group of MARACAIBO_ARCIPRESTAZGOS) {
+    const patronName = group.nombre.replace(/^Arciprestazgo\s+\d+\.\s*/i, '').trim();
+    if (patronName && trimmed.toLowerCase().includes(patronName.toLowerCase())) {
+      return group.nombre;
+    }
+  }
+
+  if (/^arciprestazgo\b/i.test(trimmed)) {
+    return trimmed.replace(/^arciprestazgo/i, 'Arciprestazgo');
+  }
+
+  return `Arciprestazgo ${trimmed}`;
+}
+
+/**
+ * Ensures every parish name explicitly begins with "Parroquia " and matches the
+ * canonical spelling in MARACAIBO_ARCIPRESTAZGOS whenever applicable.
+ */
+export function normalizeParroquiaName(raw?: string): string {
+  const trimmed = (raw || '').trim();
+  if (!trimmed) return '';
+
+  const stripped = trimmed.replace(/^(?:parroquia\s+)+/i, '').trim();
+  if (!stripped) return '';
+
+  const targetCandidate = `Parroquia ${stripped}`.toLowerCase();
+  for (const group of MARACAIBO_ARCIPRESTAZGOS) {
+    const found = group.parroquias.find((p) => p.toLowerCase() === targetCandidate);
+    if (found) return found;
+  }
+
+  return `Parroquia ${stripped}`;
+}
+
+export function getShortArciprestazgoLabel(arciprestazgo: string): string {
+  const normalized = normalizeArciprestazgoName(arciprestazgo);
+  const found = MARACAIBO_ARCIPRESTAZGOS.find((g) => g.nombre === normalized);
+  if (found) return found.nombreCorto;
+  if (normalized.includes('·')) return normalized.split('·')[0].trim();
+  if (normalized.includes('.')) return normalized.split('.')[0].trim();
+  return normalized;
+}
+
+/**
+ * Normalizes all arciprestazgo and parroquia fields across an EpimStore in place.
+ */
+export function normalizeEpimStoreNames(store: EpimStore): EpimStore {
+  if (Array.isArray(store.encounters)) {
+    for (const enc of store.encounters) {
+      enc.arciprestazgo =
+        normalizeArciprestazgoName(enc.arciprestazgo) || MARACAIBO_ARCIPRESTAZGOS[0].nombre;
+      enc.parroquia = normalizeParroquiaName(enc.parroquia);
+    }
+  }
+  if (Array.isArray(store.reservations)) {
+    for (const res of store.reservations) {
+      res.arciprestazgo = normalizeArciprestazgoName(res.arciprestazgo);
+      res.parroquiaEpim = normalizeParroquiaName(res.parroquiaEpim);
+      if (res.parroquiaMatrimonio?.trim()) {
+        res.parroquiaMatrimonio = normalizeParroquiaName(res.parroquiaMatrimonio);
+      }
+    }
+  }
+  if (Array.isArray(store.inquiries)) {
+    for (const inq of store.inquiries) {
+      if (inq.arciprestazgoInteres?.trim()) {
+        inq.arciprestazgoInteres = normalizeArciprestazgoName(inq.arciprestazgoInteres);
+      }
+      if (inq.parroquiaInteres?.trim()) {
+        inq.parroquiaInteres = normalizeParroquiaName(inq.parroquiaInteres);
+      }
+    }
+  }
+  if (Array.isArray(store.customParishes)) {
+    for (const cp of store.customParishes) {
+      cp.arciprestazgo = normalizeArciprestazgoName(cp.arciprestazgo);
+      cp.parroquia = normalizeParroquiaName(cp.parroquia);
+    }
+  }
+  return store;
 }
 
 export function formatMonthName(mes: number): string {
@@ -300,6 +395,80 @@ export function formatEncounterDatesEs(enc: {
     .join(' · ');
 }
 
+const WEEKDAYS_DOT_ES = ['Dom.', 'Lun.', 'Mar.', 'Mié.', 'Jue.', 'Vie.', 'Sáb.'];
+
+function joinStringsEs(items: string[]): string {
+  if (items.length === 0) return '';
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} y ${items[1]}`;
+  return `${items.slice(0, -1).join(', ')} y ${items[items.length - 1]}`;
+}
+
+export interface EncounterMonthDateGroup {
+  year: number;
+  month: number;
+  monthName: string;
+  daysLabel: string;
+}
+
+export interface GroupedEncounterDatesSummary {
+  monthsHeadline: string;
+  groups: EncounterMonthDateGroup[];
+}
+
+export function getGroupedEncounterDatesEs(enc: {
+  mes?: number;
+  year?: number;
+  fechaInicio: string;
+  fechaFin: string;
+  fechas?: string[];
+  sesiones?: Array<{ fechaInicio: string; fechaFin: string }>;
+}): GroupedEncounterDatesSummary {
+  const dates = getEncounterDates(enc);
+  if (dates.length === 0) {
+    const fallbackMonth = enc.mes ? formatMonthName(enc.mes) : '';
+    const fallbackHeadline =
+      fallbackMonth && enc.year ? `${fallbackMonth} ${enc.year}` : fallbackMonth;
+    return { monthsHeadline: fallbackHeadline, groups: [] };
+  }
+
+  const rawGroups: Array<{ year: number; month: number; dayTokens: string[] }> = [];
+
+  for (const iso of dates) {
+    const [y, m, d] = iso.split('-').map(Number);
+    if (!y || !m || !d) continue;
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    const wd = WEEKDAYS_DOT_ES[dt.getUTCDay()];
+    const dayToken = `${wd} ${String(d).padStart(2, '0')}`;
+
+    const last = rawGroups[rawGroups.length - 1];
+    if (last && last.year === y && last.month === m) {
+      last.dayTokens.push(dayToken);
+    } else {
+      rawGroups.push({ year: y, month: m, dayTokens: [dayToken] });
+    }
+  }
+
+  const groups: EncounterMonthDateGroup[] = rawGroups.map((g) => ({
+    year: g.year,
+    month: g.month,
+    monthName: formatMonthName(g.month),
+    daysLabel: joinStringsEs(g.dayTokens),
+  }));
+
+  if (groups.length === 0) {
+    return { monthsHeadline: '', groups: [] };
+  }
+
+  const firstYear = groups[0].year;
+  const allSameYear = groups.every((g) => g.year === firstYear);
+  const monthsHeadline = allSameYear
+    ? `${joinStringsEs(groups.map((g) => g.monthName))} ${firstYear}`
+    : joinStringsEs(groups.map((g) => `${g.monthName} ${g.year}`));
+
+  return { monthsHeadline, groups };
+}
+
 export function doesEncounterIncludeDate(
   enc: {
     fechaInicio: string;
@@ -381,8 +550,8 @@ export function createInitialStore(): EpimStore {
       {
         id: 'epim-2026-01',
         year: 2026,
-        arciprestazgo: 'Zona 2. Sagrado Corazón de Jesús',
-        parroquia: 'Ntra. Sra. de las Mercedes',
+        arciprestazgo: 'Arciprestazgo 2. Sagrado Corazón de Jesús',
+        parroquia: 'Parroquia Ntra. Sra. de las Mercedes',
         mes: 3,
         fechaInicio: '2026-03-07',
         fechaFin: '2026-03-22',
@@ -400,8 +569,8 @@ export function createInitialStore(): EpimStore {
       {
         id: 'epim-2026-02',
         year: 2026,
-        arciprestazgo: 'Zona 1. Ntra. Sra. de Chiquinquirá',
-        parroquia: 'Basílica Ntra. Sra. de Chiquinquirá y San Juan de Dios',
+        arciprestazgo: 'Arciprestazgo 1. Ntra. Sra. de Chiquinquirá',
+        parroquia: 'Parroquia Basílica Ntra. Sra. de Chiquinquirá y San Juan de Dios',
         mes: 6,
         fechaInicio: '2026-06-06',
         fechaFin: '2026-06-21',
@@ -419,8 +588,8 @@ export function createInitialStore(): EpimStore {
       {
         id: 'epim-2026-03',
         year: 2026,
-        arciprestazgo: 'Zona 2. Sagrado Corazón de Jesús',
-        parroquia: 'San Antonio María Claret',
+        arciprestazgo: 'Arciprestazgo 2. Sagrado Corazón de Jesús',
+        parroquia: 'Parroquia San Antonio María Claret',
         mes: 10,
         fechaInicio: '2026-10-24',
         fechaFin: '2026-11-08',
@@ -438,8 +607,8 @@ export function createInitialStore(): EpimStore {
       {
         id: 'epim-2026-04',
         year: 2026,
-        arciprestazgo: 'Zona 4. Ntra. Sra. de Coromoto',
-        parroquia: 'Ntra. Sra. de Coromoto. Los Olivos',
+        arciprestazgo: 'Arciprestazgo 4. Ntra. Sra. de Coromoto',
+        parroquia: 'Parroquia Ntra. Sra. de Coromoto. Los Olivos',
         mes: 11,
         fechaInicio: '2026-11-07',
         fechaFin: '2026-11-22',
@@ -457,8 +626,8 @@ export function createInitialStore(): EpimStore {
       {
         id: 'epim-2026-05',
         year: 2026,
-        arciprestazgo: 'Zona 3. La Sagrada Familia',
-        parroquia: 'Ntra. Sra. de Lourdes. Maracaibo',
+        arciprestazgo: 'Arciprestazgo 3. La Sagrada Familia',
+        parroquia: 'Parroquia Ntra. Sra. de Lourdes. Maracaibo',
         mes: 11,
         fechaInicio: '2026-11-14',
         fechaFin: '2026-11-29',
@@ -476,8 +645,8 @@ export function createInitialStore(): EpimStore {
       {
         id: 'epim-2026-06',
         year: 2026,
-        arciprestazgo: 'Zona 5. San Francisco de Asís',
-        parroquia: 'Santísimo Cristo de San Francisco',
+        arciprestazgo: 'Arciprestazgo 5. San Francisco de Asís',
+        parroquia: 'Parroquia Santísimo Cristo de San Francisco',
         mes: 11,
         fechaInicio: '2026-11-14',
         fechaFin: '2026-11-29',
@@ -495,8 +664,8 @@ export function createInitialStore(): EpimStore {
       {
         id: 'epim-2026-07',
         year: 2026,
-        arciprestazgo: 'Zona 2. Sagrado Corazón de Jesús',
-        parroquia: 'Ntra. Sra. de la Consolación',
+        arciprestazgo: 'Arciprestazgo 2. Sagrado Corazón de Jesús',
+        parroquia: 'Parroquia Ntra. Sra. de la Consolación',
         mes: 11,
         fechaInicio: '2026-11-28',
         fechaFin: '2026-12-13',
@@ -514,8 +683,8 @@ export function createInitialStore(): EpimStore {
       {
         id: 'epim-2026-08',
         year: 2026,
-        arciprestazgo: 'Zona 7. San Rafael del Moján',
-        parroquia: 'San Rafael Arcángel El Moján',
+        arciprestazgo: 'Arciprestazgo 7. San Rafael del Moján',
+        parroquia: 'Parroquia San Rafael Arcángel El Moján',
         mes: 12,
         fechaInicio: '2026-12-05',
         fechaFin: '2026-12-20',
@@ -526,7 +695,7 @@ export function createInitialStore(): EpimStore {
         coordinadores: 'Esp. Hernán y Carmen Paz',
         cuposTotales: 18,
         cuposReservados: 4,
-        aporteInfo: 'Encuentro zonal para comunidades de Mara y Guajira',
+        aporteInfo: 'Encuentro arciprestal para comunidades de Mara y Guajira',
         estado: 'abierto',
         updatedAt: '2026-10-24T12:00:00.000Z',
       },
@@ -534,8 +703,8 @@ export function createInitialStore(): EpimStore {
       {
         id: 'epim-2027-01',
         year: 2027,
-        arciprestazgo: 'Zona 1. Ntra. Sra. de Chiquinquirá',
-        parroquia: 'El Sagrario La Catedral de los Santos Apóstoles Pedro y Pablo',
+        arciprestazgo: 'Arciprestazgo 1. Ntra. Sra. de Chiquinquirá',
+        parroquia: 'Parroquia El Sagrario La Catedral de los Santos Apóstoles Pedro y Pablo',
         mes: 1,
         fechaInicio: '2027-01-16',
         fechaFin: '2027-01-31',
@@ -553,8 +722,8 @@ export function createInitialStore(): EpimStore {
       {
         id: 'epim-2027-02',
         year: 2027,
-        arciprestazgo: 'Zona 2. Sagrado Corazón de Jesús',
-        parroquia: 'Ntra. Sra. de las Mercedes',
+        arciprestazgo: 'Arciprestazgo 2. Sagrado Corazón de Jesús',
+        parroquia: 'Parroquia Ntra. Sra. de las Mercedes',
         mes: 2,
         fechaInicio: '2027-02-06',
         fechaFin: '2027-02-21',
@@ -572,8 +741,8 @@ export function createInitialStore(): EpimStore {
       {
         id: 'epim-2027-03',
         year: 2027,
-        arciprestazgo: 'Zona 4. Ntra. Sra. de Coromoto',
-        parroquia: 'San Pablo Apóstol. La Rotaria',
+        arciprestazgo: 'Arciprestazgo 4. Ntra. Sra. de Coromoto',
+        parroquia: 'Parroquia San Pablo Apóstol. La Rotaria',
         mes: 3,
         fechaInicio: '2027-03-06',
         fechaFin: '2027-03-21',
@@ -595,15 +764,15 @@ export function createInitialStore(): EpimStore {
         codigoReserva: 'EPIM-2026-4812',
         encounterId: 'epim-2026-03',
         year: 2026,
-        parroquiaEpim: 'San Antonio María Claret',
-        arciprestazgo: 'Zona 2. Sagrado Corazón de Jesús',
+        parroquiaEpim: 'Parroquia San Antonio María Claret',
+        arciprestazgo: 'Arciprestazgo 2. Sagrado Corazón de Jesús',
         fechasEpim: '24 y 31 oct · 7 y 8 nov de 2026',
         nombreNovia: 'Daniela Alejandra Montiel',
         nombreNovio: 'Alejandro José Fuenmayor',
         documentoIdentidad: 'V-26.418.902 / V-25.891.114',
         telefonoPareja: '+58 414-6901122',
         correoPareja: 'daniela.montiel@ejemplo.com',
-        parroquiaMatrimonio: 'Ntra. Sra. de la Consolación',
+        parroquiaMatrimonio: 'Parroquia Ntra. Sra. de la Consolación',
         fechaPrevistaBoda: '2027-02-14',
         observaciones: 'Expediente matrimonial iniciado con el Pbro. párroco.',
         estado: 'confirmada',
@@ -614,15 +783,15 @@ export function createInitialStore(): EpimStore {
         codigoReserva: 'EPIM-2026-5190',
         encounterId: 'epim-2026-04',
         year: 2026,
-        parroquiaEpim: 'Ntra. Sra. de Coromoto. Los Olivos',
-        arciprestazgo: 'Zona 4. Ntra. Sra. de Coromoto',
+        parroquiaEpim: 'Parroquia Ntra. Sra. de Coromoto. Los Olivos',
+        arciprestazgo: 'Arciprestazgo 4. Ntra. Sra. de Coromoto',
         fechasEpim: '7, 14, 21 y 22 de noviembre de 2026',
         nombreNovia: 'Valeria Sofía Castellanos',
         nombreNovio: 'Ricardo Andrés Boscán',
         documentoIdentidad: 'V-27.104.331 / V-26.774.209',
         telefonoPareja: '+58 424-6039981',
         correoPareja: 'ricardo.boscan@ejemplo.com',
-        parroquiaMatrimonio: 'Basílica Ntra. Sra. de Chiquinquirá y San Juan de Dios',
+        parroquiaMatrimonio: 'Parroquia Basílica Ntra. Sra. de Chiquinquirá y San Juan de Dios',
         fechaPrevistaBoda: '2027-04-10',
         observaciones: '',
         estado: 'confirmada',
@@ -636,8 +805,8 @@ export function createInitialStore(): EpimStore {
         rolRemitente: 'Sacerdote / Diácono',
         telefono: '+58 414-6229810',
         correo: 'despacho.santalucia@ejemplo.com',
-        arciprestazgoInteres: 'Zona 1. Ntra. Sra. de Chiquinquirá',
-        parroquiaInteres: 'Santa Lucía',
+        arciprestazgoInteres: 'Arciprestazgo 1. Ntra. Sra. de Chiquinquirá',
+        parroquiaInteres: 'Parroquia Santa Lucía',
         mensaje:
           'Bendiciones. Quisiéramos confirmar la fecha límite para remitir las tres parejas de nuestra comunidad al encuentro en La Consolación.',
         estado: 'pendiente',

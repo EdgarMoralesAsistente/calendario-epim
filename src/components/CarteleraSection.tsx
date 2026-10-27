@@ -13,11 +13,11 @@ import {
   doesEncounterMatchMonth,
   formatEncounterDatesEs,
   formatMonthName,
-  formatSingleDateEs,
-  getEncounterDates,
-  getShortZoneLabel,
+  getGroupedEncounterDatesEs,
   MARACAIBO_ARCIPRESTAZGOS,
   MONTHS_ES,
+  normalizeArciprestazgoName,
+  normalizeParroquiaName,
 } from '../data/maracaiboCatalog.ts';
 
 interface CarteleraSectionProps {
@@ -43,8 +43,14 @@ export const CarteleraSection: React.FC<CarteleraSectionProps> = ({
   // Build dynamic list of Arciprestazgos & Parroquias combining official catalog + scheduled encounters
   const arciprestazgoOptions = useMemo(() => {
     const set = new Set<string>(MARACAIBO_ARCIPRESTAZGOS.map((g) => g.nombre));
-    encounters.forEach((e) => set.add(e.arciprestazgo));
-    customParishes.forEach((p) => set.add(p.arciprestazgo));
+    encounters.forEach((e) => {
+      const norm = normalizeArciprestazgoName(e.arciprestazgo);
+      if (norm) set.add(norm);
+    });
+    customParishes.forEach((p) => {
+      const norm = normalizeArciprestazgoName(p.arciprestazgo);
+      if (norm) set.add(norm);
+    });
     return Array.from(set);
   }, [encounters, customParishes]);
 
@@ -56,13 +62,23 @@ export const CarteleraSection: React.FC<CarteleraSectionProps> = ({
       }
     });
     customParishes.forEach((cp) => {
-      if (selectedArciprestazgo === 'todos' || cp.arciprestazgo === selectedArciprestazgo) {
-        set.add(cp.parroquia);
+      const normArc = normalizeArciprestazgoName(cp.arciprestazgo);
+      const normPar = normalizeParroquiaName(cp.parroquia);
+      if (
+        normPar &&
+        (selectedArciprestazgo === 'todos' || normArc === selectedArciprestazgo)
+      ) {
+        set.add(normPar);
       }
     });
     encounters.forEach((e) => {
-      if (selectedArciprestazgo === 'todos' || e.arciprestazgo === selectedArciprestazgo) {
-        set.add(e.parroquia);
+      const normArc = normalizeArciprestazgoName(e.arciprestazgo);
+      const normPar = normalizeParroquiaName(e.parroquia);
+      if (
+        normPar &&
+        (selectedArciprestazgo === 'todos' || normArc === selectedArciprestazgo)
+      ) {
+        set.add(normPar);
       }
     });
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
@@ -71,10 +87,12 @@ export const CarteleraSection: React.FC<CarteleraSectionProps> = ({
   const filteredEncounters = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return encounters.filter((enc) => {
-      if (selectedArciprestazgo !== 'todos' && enc.arciprestazgo !== selectedArciprestazgo) {
+      const normArc = normalizeArciprestazgoName(enc.arciprestazgo);
+      const normPar = normalizeParroquiaName(enc.parroquia);
+      if (selectedArciprestazgo !== 'todos' && normArc !== selectedArciprestazgo) {
         return false;
       }
-      if (selectedParroquia !== 'todas' && enc.parroquia !== selectedParroquia) {
+      if (selectedParroquia !== 'todas' && normPar !== selectedParroquia) {
         return false;
       }
       if (selectedMes !== 'todos' && !doesEncounterMatchMonth(enc, Number(selectedMes))) {
@@ -86,8 +104,8 @@ export const CarteleraSection: React.FC<CarteleraSectionProps> = ({
       }
       if (q) {
         const searchable = [
-          enc.parroquia,
-          enc.arciprestazgo,
+          normPar,
+          normArc,
           enc.telefonoContacto,
           enc.coordinadores,
           enc.sedeDetalle,
@@ -143,8 +161,8 @@ export const CarteleraSection: React.FC<CarteleraSectionProps> = ({
       String(e.year),
       formatMonthName(e.mes),
       formatEncounterDatesEs(e),
-      e.arciprestazgo,
-      e.parroquia,
+      normalizeArciprestazgoName(e.arciprestazgo),
+      normalizeParroquiaName(e.parroquia),
       e.horario,
       e.sedeDetalle,
       e.telefonoContacto,
@@ -247,7 +265,7 @@ export const CarteleraSection: React.FC<CarteleraSectionProps> = ({
                 htmlFor="filter-arciprestazgo"
                 className="block text-xs font-medium text-zinc-700"
               >
-                Arciprestazgo / Zona Pastoral
+                Arciprestazgo
               </label>
               <select
                 id="filter-arciprestazgo"
@@ -401,91 +419,89 @@ export const CarteleraSection: React.FC<CarteleraSectionProps> = ({
                 Math.round((enc.cuposReservados / Math.max(1, enc.cuposTotales)) * 100)
               );
               const waPhone = cleanPhoneForWhatsApp(enc.telefonoContacto);
+              const dateSummary = getGroupedEncounterDatesEs(enc);
+              const arcLabel = normalizeArciprestazgoName(enc.arciprestazgo);
+              const parishLabel = normalizeParroquiaName(enc.parroquia);
 
               return (
                 <article
                   key={enc.id}
-                  className="flex flex-col justify-between rounded-xl border border-zinc-200 bg-white p-6 transition-colors hover:border-zinc-300"
+                  className="flex flex-col justify-between rounded-xl border border-zinc-200 bg-white p-5 transition-colors hover:border-zinc-300"
                 >
                   <div>
-                    {/* Quiet Unboxed Metadata Line (Zero-Pill Rule) */}
-                    <div className="flex flex-wrap items-center gap-1.5 text-xs text-zinc-500">
-                      <span className="font-medium text-[#DC1F26]">
-                        {formatMonthName(enc.mes)} {enc.year}
-                      </span>
-                      <span aria-hidden="true">·</span>
-                      <span className="truncate max-w-[220px]" title={enc.arciprestazgo}>
-                        {getShortZoneLabel(enc.arciprestazgo)}
-                      </span>
-                    </div>
+                    {/* Single Non-Redundant Arciprestazgo Kicker */}
+                    <p
+                      className="truncate text-xs font-medium text-zinc-500"
+                      title={arcLabel}
+                    >
+                      {arcLabel}
+                    </p>
 
-                    {/* Lead Directly with Parish Title */}
-                    <h3 className="mt-2 font-display text-lg font-semibold leading-snug text-zinc-900">
-                      {enc.parroquia}
+                    {/* Parish Title */}
+                    <h3 className="mt-1 font-display text-base sm:text-lg font-bold leading-snug text-zinc-900">
+                      {parishLabel}
                     </h3>
 
-                    <p className="mt-1 text-xs text-zinc-500">{enc.arciprestazgo}</p>
+                    {/* Compact Grouped Dates Block */}
+                    <div className="mt-3 border-t border-zinc-100 pt-3">
+                      <p className="text-xs sm:text-sm font-bold text-[#DC1F26] tabular-nums">
+                        {dateSummary.monthsHeadline}
+                      </p>
 
-                    {/* Structured Hairline Details */}
-                    <dl className="mt-4 divide-y divide-zinc-100 border-t border-zinc-100 text-xs sm:text-sm">
-                      <div className="py-2.5">
-                        <dt className="text-xs text-zinc-500">
-                          Fechas programadas ({getEncounterDates(enc).length} fechas)
-                        </dt>
-                        <dd className="mt-0.5 font-medium text-zinc-900 tabular-nums">
-                          {formatEncounterDatesEs(enc)}
-                        </dd>
-                        <dd className="mt-1 space-y-0.5 text-xs text-zinc-600 tabular-nums">
-                          {getEncounterDates(enc).map((isoDate, dIdx) => (
-                            <div key={isoDate}>
-                              · Fecha {dIdx + 1}: {formatSingleDateEs(isoDate)}
-                            </div>
+                      {dateSummary.groups.length > 0 && (
+                        <div className="mt-1 space-y-0.5 text-xs text-zinc-700 tabular-nums">
+                          {dateSummary.groups.map((grp) => (
+                            <p key={`${grp.year}-${grp.month}`}>
+                              <span className="font-semibold text-zinc-900">
+                                {grp.monthName} {grp.year}:
+                              </span>{' '}
+                              <span>{grp.daysLabel}</span>
+                            </p>
                           ))}
-                        </dd>
-                        <dd className="mt-1 text-xs text-zinc-600">{enc.horario}</dd>
-                      </div>
-
-                      {enc.sedeDetalle && (
-                        <div className="py-2.5">
-                          <dt className="text-xs text-zinc-500">Lugar</dt>
-                          <dd className="mt-0.5 text-zinc-800">{enc.sedeDetalle}</dd>
                         </div>
                       )}
 
-                      <div className="py-2.5">
-                        <dt className="text-xs text-zinc-500">Contacto pastoral</dt>
-                        <dd className="mt-0.5 flex flex-wrap items-center justify-between gap-2">
+                      {enc.horario && (
+                        <p className="mt-1.5 text-xs text-zinc-500">{enc.horario}</p>
+                      )}
+                    </div>
+
+                    {/* Concise Venue & Pastoral Contact */}
+                    <div className="mt-3 border-t border-zinc-100 pt-2.5 text-xs space-y-1.5">
+                      {enc.sedeDetalle && (
+                        <p className="text-zinc-700">{enc.sedeDetalle}</p>
+                      )}
+
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <a
+                          href={`tel:${enc.telefonoContacto}`}
+                          className="inline-flex items-center gap-1.5 font-mono font-medium text-zinc-900 hover:text-[#DC1F26] tabular-nums"
+                        >
+                          <Phone className="h-3.5 w-3.5 text-[#DC1F26]" />
+                          {enc.telefonoContacto || 'Consultar en despacho'}
+                        </a>
+                        {waPhone && (
                           <a
-                            href={`tel:${enc.telefonoContacto}`}
-                            className="inline-flex items-center gap-1.5 font-mono text-xs font-medium text-zinc-900 hover:text-[#DC1F26] tabular-nums"
+                            href={`https://wa.me/${waPhone}?text=${encodeURIComponent(
+                              `Hola, paz y bien. Deseo consultar información sobre el EPIM en ${parishLabel} (${dateSummary.monthsHeadline}).`
+                            )}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-medium text-zinc-600 underline decoration-zinc-300 underline-offset-4 hover:text-zinc-900 whitespace-nowrap shrink-0"
                           >
-                            <Phone className="h-3.5 w-3.5 text-[#DC1F26]" />
-                            {enc.telefonoContacto || 'Consultar en despacho'}
+                            WhatsApp
                           </a>
-                          {waPhone && (
-                            <a
-                              href={`https://wa.me/${waPhone}?text=${encodeURIComponent(
-                                `Hola, paz y bien. Deseo consultar información sobre el EPIM en ${enc.parroquia} (${formatEncounterDatesEs(
-                                  enc
-                                )}).`
-                              )}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs font-medium text-zinc-600 underline decoration-zinc-300 underline-offset-4 hover:text-zinc-900 whitespace-nowrap shrink-0"
-                            >
-                              WhatsApp
-                            </a>
-                          )}
-                        </dd>
-                        {enc.coordinadores && (
-                          <dd className="mt-0.5 text-xs text-zinc-500">{enc.coordinadores}</dd>
                         )}
                       </div>
-                    </dl>
+
+                      {enc.coordinadores && (
+                        <p className="text-zinc-500">{enc.coordinadores}</p>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Inventory Bar + Action Footer */}
-                  <div className="mt-4 border-t border-zinc-100 pt-4">
+                  {/* Compact Inventory Bar + Action Footer */}
+                  <div className="mt-3.5 border-t border-zinc-100 pt-3">
                     <div className="flex items-center justify-between text-xs tabular-nums">
                       <span
                         className={
@@ -502,7 +518,6 @@ export const CarteleraSection: React.FC<CarteleraSectionProps> = ({
                           ? `${disponibles} de ${enc.cuposTotales} cupos disponibles`
                           : 'Cupos agotados'}
                       </span>
-                      <span className="font-mono text-zinc-500">{occupancyPct}%</span>
                     </div>
 
                     <svg
@@ -527,15 +542,20 @@ export const CarteleraSection: React.FC<CarteleraSectionProps> = ({
                     </svg>
 
                     {enc.aporteInfo && (
-                      <p className="mt-2.5 text-xs text-zinc-500">{enc.aporteInfo}</p>
+                      <p
+                        className="mt-2 line-clamp-2 text-[11px] leading-snug text-zinc-500"
+                        title={enc.aporteInfo}
+                      >
+                        {enc.aporteInfo}
+                      </p>
                     )}
 
-                    <div className="no-print mt-4">
+                    <div className="no-print mt-3">
                       {isOpen ? (
                         <button
                           type="button"
                           onClick={() => onSelectForReservation(enc)}
-                          className="w-full rounded-lg bg-[#DC1F26] px-4 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-[#B9191F] whitespace-nowrap shrink-0"
+                          className="w-full rounded-lg bg-[#DC1F26] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#B9191F] whitespace-nowrap shrink-0"
                         >
                           Reservar cupo en esta parroquia
                         </button>
@@ -543,7 +563,7 @@ export const CarteleraSection: React.FC<CarteleraSectionProps> = ({
                         <button
                           type="button"
                           disabled
-                          className="w-full cursor-not-allowed rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-xs font-medium text-zinc-400 whitespace-nowrap shrink-0"
+                          className="w-full cursor-not-allowed rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-2 text-xs font-medium text-zinc-400 whitespace-nowrap shrink-0"
                         >
                           {enc.estado === 'finalizado' ? 'Encuentro finalizado' : 'Sin cupos disponibles'}
                         </button>
@@ -583,10 +603,12 @@ export const CarteleraSection: React.FC<CarteleraSectionProps> = ({
                         </div>
                       </td>
                       <td className="px-4 py-3.5 align-top text-xs text-zinc-600">
-                        {enc.arciprestazgo}
+                        {normalizeArciprestazgoName(enc.arciprestazgo)}
                       </td>
                       <td className="px-4 py-3.5 align-top">
-                        <div className="font-medium text-zinc-900">{enc.parroquia}</div>
+                        <div className="font-medium text-zinc-900">
+                          {normalizeParroquiaName(enc.parroquia)}
+                        </div>
                         <div className="mt-0.5 text-xs text-zinc-500">
                           {enc.sedeDetalle || enc.horario}
                         </div>

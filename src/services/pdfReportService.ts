@@ -2,12 +2,13 @@ import { jsPDF } from 'jspdf';
 import autoTable, { type RowInput } from 'jspdf-autotable';
 import type { AppConfig, EpimEncounter, Reservation } from '../types/epim.ts';
 import {
-  formatEncounterDatesEs,
-  formatSingleDateEs,
   getEncounterDates,
+  getGroupedEncounterDatesEs,
   LOGO_URL_FALLBACK,
   LOGO_URL_PRIMARY,
   MARACAIBO_ARCIPRESTAZGOS,
+  normalizeArciprestazgoName,
+  normalizeParroquiaName,
 } from '../data/maracaiboCatalog.ts';
 
 export interface EpimReportFilters {
@@ -26,6 +27,11 @@ export interface ArciprestazgoReportGroup {
   totalReservados: number;
   totalDisponibles: number;
 }
+
+type StyledDatePdfLine =
+  | { kind: 'headline'; text: string; plainText: string }
+  | { kind: 'group-first'; prefix: string; rest: string; plainText: string }
+  | { kind: 'group-cont'; text: string; plainText: string };
 
 /**
  * Sanitizes text for jsPDF built-in Helvetica (WinAnsiEncoding) so that all Spanish
@@ -47,6 +53,87 @@ export function cleanPdfText(input: string | undefined | null): string {
     .trim();
 }
 
+/**
+ * Builds pre-wrapped rich-text lines for an encounter's scheduled dates using the same
+ * criterion as the public Cartelera cards:
+ * - Line 1: Bold summary of involved month(s) + year (e.g. "Abril 2027" or "Octubre y Noviembre 2027")
+ * - Grouped lines: Bold "Mes Año:" prefix + normal weekday/day tokens (e.g. "Octubre 2027: Vie. 30 y Sáb. 31")
+ */
+function buildStyledDateLinesForPdf(
+  doc: jsPDF,
+  enc: EpimEncounter,
+  fontSize: number,
+  maxLineWidthMm: number
+): StyledDatePdfLine[] {
+  const dateSummary = getGroupedEncounterDatesEs(enc);
+  const result: StyledDatePdfLine[] = [];
+
+  doc.setFontSize(fontSize);
+
+  const headlineRaw = cleanPdfText(dateSummary.monthsHeadline || 'Fechas por confirmar');
+  doc.setFont('helvetica', 'bold');
+  const headlineWrapped = doc.splitTextToSize(headlineRaw, maxLineWidthMm) as string[];
+  for (const line of headlineWrapped) {
+    if (line) {
+      result.push({ kind: 'headline', text: line, plainText: line });
+    }
+  }
+
+  for (const grp of dateSummary.groups) {
+    const prefix = cleanPdfText(`${grp.monthName} ${grp.year}:`);
+    const daysText = cleanPdfText(grp.daysLabel);
+
+    doc.setFont('helvetica', 'bold');
+    const prefixWithSpaceW = doc.getTextWidth(`${prefix} `);
+
+    doc.setFont('helvetica', 'normal');
+    const words = daysText.split(/\s+/).filter(Boolean);
+
+    if (words.length === 0) {
+      result.push({ kind: 'group-first', prefix, rest: '', plainText: prefix });
+      continue;
+    }
+
+    const firstLineMaxW = Math.max(10, maxLineWidthMm - prefixWithSpaceW);
+    const firstLineWords: string[] = [];
+    let wordIdx = 0;
+
+    while (wordIdx < words.length) {
+      const candidate = [...firstLineWords, words[wordIdx]].join(' ');
+      if (doc.getTextWidth(candidate) <= firstLineMaxW) {
+        firstLineWords.push(words[wordIdx]);
+        wordIdx += 1;
+      } else {
+        break;
+      }
+    }
+
+    if (firstLineWords.length > 0) {
+      const firstRest = firstLineWords.join(' ');
+      result.push({
+        kind: 'group-first',
+        prefix,
+        rest: firstRest,
+        plainText: `${prefix} ${firstRest}`,
+      });
+    } else {
+      result.push({ kind: 'group-first', prefix, rest: '', plainText: prefix });
+    }
+
+    if (wordIdx < words.length) {
+      const remainingStr = words.slice(wordIdx).join(' ');
+      const contLines = doc.splitTextToSize(remainingStr, maxLineWidthMm) as string[];
+      for (const cLine of contLines) {
+        if (cLine) {
+          result.push({ kind: 'group-cont', text: cLine, plainText: cLine });
+        }
+      }
+    }
+  }
+
+  return result;
+}
+
 function getArciprestazgoOrderIndex(arcName: string): number {
   const idx = MARACAIBO_ARCIPRESTAZGOS.findIndex((g) => g.nombre === arcName);
   return idx === -1 ? 999 : idx;
@@ -54,33 +141,39 @@ function getArciprestazgoOrderIndex(arcName: string): number {
 
 /**
  * Canonical report sorter requested by user:
- * 1° Arciprestazgo (pastoral zone order, then alphabetical)
+ * 1° Arciprestazgo (ecclesiastical order, then alphabetical)
  * 2° Parroquia (alphabetical A-Z)
  * 3° Fechas (chronological by first scheduled date, then closing date)
  */
 export function sortEncountersForReport(encounters: EpimEncounter[]): EpimEncounter[] {
-  return [...encounters].sort((a, b) => {
-    const arcOrderA = getArciprestazgoOrderIndex(a.arciprestazgo);
-    const arcOrderB = getArciprestazgoOrderIndex(b.arciprestazgo);
-    if (arcOrderA !== arcOrderB) return arcOrderA - arcOrderB;
+  return encounters
+    .map((enc) => ({
+      ...enc,
+      arciprestazgo: normalizeArciprestazgoName(enc.arciprestazgo),
+      parroquia: normalizeParroquiaName(enc.parroquia),
+    }))
+    .sort((a, b) => {
+      const arcOrderA = getArciprestazgoOrderIndex(a.arciprestazgo);
+      const arcOrderB = getArciprestazgoOrderIndex(b.arciprestazgo);
+      if (arcOrderA !== arcOrderB) return arcOrderA - arcOrderB;
 
-    const arcCmp = a.arciprestazgo.localeCompare(b.arciprestazgo, 'es', {
-      sensitivity: 'base',
+      const arcCmp = a.arciprestazgo.localeCompare(b.arciprestazgo, 'es', {
+        sensitivity: 'base',
+      });
+      if (arcCmp !== 0) return arcCmp;
+
+      const parishCmp = a.parroquia.localeCompare(b.parroquia, 'es', {
+        sensitivity: 'base',
+      });
+      if (parishCmp !== 0) return parishCmp;
+
+      const firstDateA = getEncounterDates(a)[0] || a.fechaInicio;
+      const firstDateB = getEncounterDates(b)[0] || b.fechaInicio;
+      const dateCmp = firstDateA.localeCompare(firstDateB);
+      if (dateCmp !== 0) return dateCmp;
+
+      return a.fechaFin.localeCompare(b.fechaFin);
     });
-    if (arcCmp !== 0) return arcCmp;
-
-    const parishCmp = a.parroquia.localeCompare(b.parroquia, 'es', {
-      sensitivity: 'base',
-    });
-    if (parishCmp !== 0) return parishCmp;
-
-    const firstDateA = getEncounterDates(a)[0] || a.fechaInicio;
-    const firstDateB = getEncounterDates(b)[0] || b.fechaInicio;
-    const dateCmp = firstDateA.localeCompare(firstDateB);
-    if (dateCmp !== 0) return dateCmp;
-
-    return a.fechaFin.localeCompare(b.fechaFin);
-  });
 }
 
 export function filterAndSortEncountersForReport(
@@ -88,13 +181,15 @@ export function filterAndSortEncountersForReport(
   filters: Pick<EpimReportFilters, 'year' | 'arciprestazgo' | 'parroquia' | 'estado'>
 ): EpimEncounter[] {
   const filtered = encounters.filter((enc) => {
+    const normArc = normalizeArciprestazgoName(enc.arciprestazgo);
+    const normPar = normalizeParroquiaName(enc.parroquia);
     if (filters.year !== 'todos' && enc.year !== filters.year) {
       return false;
     }
-    if (filters.arciprestazgo !== 'todos' && enc.arciprestazgo !== filters.arciprestazgo) {
+    if (filters.arciprestazgo !== 'todos' && normArc !== filters.arciprestazgo) {
       return false;
     }
-    if (filters.parroquia !== 'todas' && enc.parroquia !== filters.parroquia) {
+    if (filters.parroquia !== 'todas' && normPar !== filters.parroquia) {
       return false;
     }
     if (filters.estado !== 'todos' && enc.estado !== filters.estado) {
@@ -110,7 +205,12 @@ export function groupEncountersByArciprestazgo(
   sortedEncounters: EpimEncounter[]
 ): ArciprestazgoReportGroup[] {
   const map = new Map<string, ArciprestazgoReportGroup>();
-  for (const enc of sortedEncounters) {
+  for (const rawEnc of sortedEncounters) {
+    const enc = {
+      ...rawEnc,
+      arciprestazgo: normalizeArciprestazgoName(rawEnc.arciprestazgo),
+      parroquia: normalizeParroquiaName(rawEnc.parroquia),
+    };
     const existing = map.get(enc.arciprestazgo);
     const disponibles = Math.max(0, enc.cuposTotales - enc.cuposReservados);
     if (existing) {
@@ -230,22 +330,24 @@ export async function generateAndDownloadEpimPdf(params: {
   const arcFilterLabel =
     filters.arciprestazgo === 'todos'
       ? 'Todos los Arciprestazgos'
-      : cleanPdfText(filters.arciprestazgo);
+      : cleanPdfText(normalizeArciprestazgoName(filters.arciprestazgo));
   const parishFilterLabel =
     filters.parroquia === 'todas'
       ? 'Todas las Parroquias'
-      : cleanPdfText(filters.parroquia);
-  const estadoFilterLabel =
+      : cleanPdfText(normalizeParroquiaName(filters.parroquia));
+  const estadoFilterToken =
     filters.estado === 'todos'
       ? 'Todos los estados'
       : filters.estado === 'abierto'
-      ? 'Solo abiertos'
+      ? 'Estado: Solo abiertos'
       : filters.estado === 'cerrado'
-      ? 'Cerrados (cupos llenos)'
-      : 'Finalizados';
+      ? 'Estado: Cupos llenos'
+      : 'Estado: Finalizados';
 
   // Aggregate metrics
   const totalEncuentros = sorted.length;
+  const encuentrosCountLabel =
+    totalEncuentros === 1 ? '1 encuentro' : `${totalEncuentros} encuentros`;
   const uniqueArcCount = groups.length;
   const uniqueParishCount = new Set(sorted.map((e) => e.parroquia)).size;
   const totalCupos = sorted.reduce((acc, e) => acc + e.cuposTotales, 0);
@@ -274,7 +376,7 @@ export async function generateAndDownloadEpimPdf(params: {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.3);
   const filterCriteriaText = cleanPdfText(
-    `Filtros aplicados: ${yearFilterLabel}  ·  Arciprestazgo: ${arcFilterLabel}  ·  Parroquia: ${parishFilterLabel}  ·  Estado: ${estadoFilterLabel}`
+    `Filtros aplicados: ${yearFilterLabel}  ·  ${arcFilterLabel}  ·  ${parishFilterLabel}  ·  ${estadoFilterToken}`
   );
   const filterCriteriaLines = doc.splitTextToSize(
     filterCriteriaText,
@@ -334,11 +436,11 @@ export async function generateAndDownloadEpimPdf(params: {
   const kpiItems: Array<{ label: string; value: string; accent?: boolean }> = [
     {
       label: 'Encuentros incluidos',
-      value: `${totalEncuentros} encuentro(s)`,
+      value: encuentrosCountLabel,
     },
     {
       label: 'Cobertura territorial',
-      value: `${uniqueParishCount} parr. · ${uniqueArcCount} zona(s)`,
+      value: `${uniqueParishCount} parr. · ${uniqueArcCount} arcip.`,
     },
     {
       label: 'Capacidad y reservas',
@@ -346,7 +448,7 @@ export async function generateAndDownloadEpimPdf(params: {
     },
     {
       label: 'Cupos disponibles',
-      value: `${totalDisponibles} parejas`,
+      value: `${totalDisponibles} ${totalDisponibles === 1 ? 'pareja' : 'parejas'}`,
       accent: true,
     },
   ];
@@ -398,15 +500,47 @@ export async function generateAndDownloadEpimPdf(params: {
       { align: 'center' }
     );
   } else {
+    // Explicit column widths summing exactly to contentWidth so columns never squish or overlap
+    const colWidths =
+      filters.orientation === 'landscape'
+        ? {
+            // Sum = 10 + 62 + 68 + 43 + 40 + 28.4 = 251.4mm (Letter Landscape contentWidth)
+            0: 10,
+            1: 62,
+            2: 68,
+            3: 43,
+            4: 40,
+            5: contentWidth - (10 + 62 + 68 + 43 + 40),
+          }
+        : {
+            // Sum = 9.5 + 45 + 51 + 32 + 29 + 21.4 = 187.9mm (Letter Portrait contentWidth)
+            0: 9.5,
+            1: 45,
+            2: 51,
+            3: 32,
+            4: 29,
+            5: contentWidth - (9.5 + 45 + 51 + 32 + 29),
+          };
+
+    const bodyFontSize = filters.orientation === 'landscape' ? 8.1 : 7.6;
+    const cellPadH = 2.8;
+    const maxDateTextWidth = colWidths[2] - cellPadH * 2 - 1.2;
+
     const tableBody: RowInput[] = [];
+    const dateLinesByBodyRow = new Map<number, StyledDatePdfLine[]>();
     let rowCounter = 1;
 
     for (const group of groups) {
-      // Native colSpan group banner row -> 100% immune to overlap
+      const groupCountText =
+        group.encounters.length === 1
+          ? '1 encuentro'
+          : `${group.encounters.length} encuentros`;
+
+      // Non-redundant group banner row: group.arciprestazgo already begins with "Arciprestazgo ..."
       tableBody.push([
         {
           content: cleanPdfText(
-            `ARCIPRESTAZGO: ${group.arciprestazgo}   ·   ${group.encounters.length} encuentro(s)   ·   Cupos disponibles en zona: ${group.totalDisponibles} de ${group.totalCupos}`
+            `${group.arciprestazgo}   ·   ${groupCountText}   ·   Cupos disponibles: ${group.totalDisponibles} de ${group.totalCupos}`
           ),
           colSpan: 6,
           styles: {
@@ -422,14 +556,13 @@ export async function generateAndDownloadEpimPdf(params: {
       ]);
 
       for (const enc of group.encounters) {
-        const individualDates = getEncounterDates(enc);
-        const summaryDates = formatEncounterDatesEs(enc);
-        const dateLines = [
-          `Resumen: ${summaryDates}`,
-          ...individualDates.map(
-            (iso, idx) => `- Fecha ${idx + 1}: ${formatSingleDateEs(iso)}`
-          ),
-        ].join('\n');
+        const styledDateLines = buildStyledDateLinesForPdf(
+          doc,
+          enc,
+          bodyFontSize,
+          maxDateTextWidth
+        );
+        const dateLinesPlain = styledDateLines.map((l) => l.plainText).join('\n');
 
         const parishCellLines = [
           enc.parroquia,
@@ -461,10 +594,13 @@ export async function generateAndDownloadEpimPdf(params: {
           `Estado: ${formatEstadoLabel(enc.estado)}`,
         ].join('\n');
 
+        const bodyRowIndex = tableBody.length;
+        dateLinesByBodyRow.set(bodyRowIndex, styledDateLines);
+
         tableBody.push([
           cleanPdfText(String(rowCounter)),
           cleanPdfText(parishCellLines),
-          cleanPdfText(dateLines),
+          dateLinesPlain,
           cleanPdfText(scheduleCellLines),
           cleanPdfText(contactCellLines),
           cleanPdfText(quotaCellLines),
@@ -472,28 +608,6 @@ export async function generateAndDownloadEpimPdf(params: {
         rowCounter += 1;
       }
     }
-
-    // Explicit column widths summing exactly to contentWidth so columns never squish or overlap
-    const colWidths =
-      filters.orientation === 'landscape'
-        ? {
-            // Sum = 9 + 64 + 66 + 44 + 40 + 28.4 = 251.4mm (Letter Landscape contentWidth)
-            0: 9,
-            1: 64,
-            2: 66,
-            3: 44,
-            4: 40,
-            5: contentWidth - (9 + 64 + 66 + 44 + 40),
-          }
-        : {
-            // Sum = 8 + 46 + 49 + 33 + 30 + 21.9 = 187.9mm (Letter Portrait contentWidth)
-            0: 8,
-            1: 46,
-            2: 49,
-            3: 33,
-            4: 30,
-            5: contentWidth - (8 + 46 + 49 + 33 + 30),
-          };
 
     autoTable(doc, {
       startY: cursorY,
@@ -510,7 +624,7 @@ export async function generateAndDownloadEpimPdf(params: {
         [
           'N°',
           'Parroquia Sede y Lugar',
-          'Fechas Individuales del EPIM',
+          'Fechas Programadas',
           'Horario y Observaciones',
           'Contacto y Coordinación',
           'Cupos y Estado',
@@ -520,8 +634,8 @@ export async function generateAndDownloadEpimPdf(params: {
       theme: 'grid',
       styles: {
         font: 'helvetica',
-        fontSize: filters.orientation === 'landscape' ? 8.1 : 7.6,
-        cellPadding: { top: 2.8, right: 2.8, bottom: 2.8, left: 2.8 },
+        fontSize: bodyFontSize,
+        cellPadding: { top: 2.8, right: cellPadH, bottom: 2.8, left: cellPadH },
         overflow: 'linebreak',
         valign: 'top',
         textColor: [39, 39, 42],
@@ -534,7 +648,7 @@ export async function generateAndDownloadEpimPdf(params: {
         fontStyle: 'bold',
         fontSize: filters.orientation === 'landscape' ? 8.3 : 7.8,
         valign: 'middle',
-        cellPadding: { top: 3.2, right: 2.8, bottom: 3.2, left: 2.8 },
+        cellPadding: { top: 3.2, right: cellPadH, bottom: 3.2, left: cellPadH },
       },
       columnStyles: {
         0: { cellWidth: colWidths[0], halign: 'center', fontStyle: 'bold' },
@@ -544,6 +658,72 @@ export async function generateAndDownloadEpimPdf(params: {
         4: { cellWidth: colWidths[4] },
         5: { cellWidth: colWidths[5] },
       },
+      didParseCell: (data) => {
+        if (data.column.index === 0 && data.cell.colSpan === 1) {
+          data.cell.styles.halign = 'center';
+          data.cell.styles.cellPadding = {
+            top: data.section === 'head' ? 3.2 : 2.8,
+            right: 1.5,
+            bottom: data.section === 'head' ? 3.2 : 2.8,
+            left: 1.5,
+          };
+        }
+      },
+      willDrawCell: (data) => {
+        if (
+          data.section === 'body' &&
+          data.column.index === 2 &&
+          data.cell.colSpan === 1 &&
+          dateLinesByBodyRow.has(data.row.index)
+        ) {
+          // Suppress default plain-text render; rich-text lines are drawn in didDrawCell
+          data.cell.text = [];
+        }
+      },
+      didDrawCell: (data) => {
+        if (
+          data.section === 'body' &&
+          data.column.index === 2 &&
+          data.cell.colSpan === 1
+        ) {
+          const styledLines = dateLinesByBodyRow.get(data.row.index);
+          if (!styledLines || styledLines.length === 0) return;
+
+          const k = doc.internal.scaleFactor;
+          const fontSizeMm = bodyFontSize / k;
+          const lineHeightFactor = doc.getLineHeightFactor
+            ? doc.getLineHeightFactor()
+            : 1.15;
+          const lineHeight = fontSizeMm * lineHeightFactor;
+          const startX = data.cell.x + data.cell.padding('left');
+          let lineY =
+            data.cell.y + data.cell.padding('top') + fontSizeMm * (2 - 1.15);
+
+          doc.setFontSize(bodyFontSize);
+          for (const item of styledLines) {
+            if (item.kind === 'headline') {
+              doc.setFont('helvetica', 'bold');
+              doc.setTextColor(220, 31, 38); // Institutional Crimson #DC1F26
+              doc.text(item.text, startX, lineY);
+            } else if (item.kind === 'group-first') {
+              doc.setFont('helvetica', 'bold');
+              doc.setTextColor(24, 24, 27);
+              doc.text(item.prefix, startX, lineY);
+              if (item.rest) {
+                const prefixW = doc.getTextWidth(`${item.prefix} `);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(63, 63, 70);
+                doc.text(item.rest, startX + prefixW, lineY);
+              }
+            } else {
+              doc.setFont('helvetica', 'normal');
+              doc.setTextColor(63, 63, 70);
+              doc.text(item.text, startX, lineY);
+            }
+            lineY += lineHeight;
+          }
+        }
+      },
     });
 
     // ──────────────────────────────────────────────────────────────
@@ -552,7 +732,11 @@ export async function generateAndDownloadEpimPdf(params: {
     if (filters.includeReservationsAppendix) {
       const encounterIds = new Set(sorted.map((e) => e.id));
       const encounterOrderMap = new Map<string, number>();
-      sorted.forEach((e, idx) => encounterOrderMap.set(e.id, idx));
+      const encounterById = new Map<string, EpimEncounter>();
+      sorted.forEach((e, idx) => {
+        encounterOrderMap.set(e.id, idx);
+        encounterById.set(e.id, e);
+      });
 
       const matchingReservations = reservations
         .filter((r) => r.estado === 'confirmada' && encounterIds.has(r.encounterId))
@@ -613,29 +797,46 @@ export async function generateAndDownloadEpimPdf(params: {
                 4: contentWidth - (22 + 46 + 44 + 34),
               };
 
-        const resBody: RowInput[] = matchingReservations.map((r) => [
-          cleanPdfText(r.codigoReserva),
-          cleanPdfText(
-            `${r.parroquiaEpim}\n${r.arciprestazgo}\nFechas: ${r.fechasEpim}`
-          ),
-          cleanPdfText(
-            `Novia: ${r.nombreNovia}\nNovio: ${r.nombreNovio}${
-              r.documentoIdentidad ? `\nCédulas: ${r.documentoIdentidad}` : ''
-            }`
-          ),
-          cleanPdfText(
-            `Tel: ${r.telefonoPareja}${
-              r.correoPareja ? `\nCorreo: ${r.correoPareja}` : ''
-            }`
-          ),
-          cleanPdfText(
-            `${
-              r.parroquiaMatrimonio
-                ? `Boda en: ${r.parroquiaMatrimonio}`
-                : 'Parroquia boda: Por definir'
-            }${r.fechaPrevistaBoda ? `\nFecha boda: ${r.fechaPrevistaBoda}` : ''}`
-          ),
-        ]);
+        const resBody: RowInput[] = matchingReservations.map((r) => {
+          const matchedEnc = encounterById.get(r.encounterId);
+          let formattedDatesBlock = r.fechasEpim;
+          if (matchedEnc) {
+            const grouped = getGroupedEncounterDatesEs(matchedEnc);
+            if (grouped.groups.length > 0) {
+              formattedDatesBlock = grouped.groups
+                .map((g) => `${g.monthName} ${g.year}: ${g.daysLabel}`)
+                .join('\n');
+            } else if (grouped.monthsHeadline) {
+              formattedDatesBlock = grouped.monthsHeadline;
+            }
+          }
+
+          return [
+            cleanPdfText(r.codigoReserva),
+            cleanPdfText(
+              `${normalizeParroquiaName(r.parroquiaEpim)}\n${normalizeArciprestazgoName(
+                r.arciprestazgo
+              )}\n${formattedDatesBlock}`
+            ),
+            cleanPdfText(
+              `Novia: ${r.nombreNovia}\nNovio: ${r.nombreNovio}${
+                r.documentoIdentidad ? `\nCédulas: ${r.documentoIdentidad}` : ''
+              }`
+            ),
+            cleanPdfText(
+              `Tel: ${r.telefonoPareja}${
+                r.correoPareja ? `\nCorreo: ${r.correoPareja}` : ''
+              }`
+            ),
+            cleanPdfText(
+              `${
+                r.parroquiaMatrimonio
+                  ? `Boda en: ${normalizeParroquiaName(r.parroquiaMatrimonio)}`
+                  : 'Parroquia boda: Por definir'
+              }${r.fechaPrevistaBoda ? `\nFecha boda: ${r.fechaPrevistaBoda}` : ''}`
+            ),
+          ];
+        });
 
         autoTable(doc, {
           startY: nextY,
@@ -692,10 +893,10 @@ export async function generateAndDownloadEpimPdf(params: {
   // INSTITUTIONAL HEADER & FOOTER ON EVERY PAGE (Non-overlapping zones)
   // ──────────────────────────────────────────────────────────────
   const totalPages = doc.getNumberOfPages();
-  const rightMetaWidth = 56;
+  const rightMetaWidth = filters.orientation === 'landscape' ? 56 : 48;
   const logoBoxSize = 20;
-  const titleStartX = marginX + logoBoxSize + 4.5; // 38.5mm
-  const titleMaxWidth = pageWidth - marginX - rightMetaWidth - 5 - titleStartX;
+  const titleStartX = marginX + logoBoxSize + 4; // 38mm
+  const titleMaxWidth = pageWidth - marginX - rightMetaWidth - 4 - titleStartX;
 
   for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
     doc.setPage(pageNum);
@@ -763,7 +964,7 @@ export async function generateAndDownloadEpimPdf(params: {
     doc.text(line2 || '', titleStartX, 16.0);
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9.2);
+    doc.setFontSize(filters.orientation === 'landscape' ? 9.2 : 8.1);
     doc.setTextColor(74, 75, 78);
     const line3 = (
       doc.splitTextToSize(
@@ -819,7 +1020,7 @@ export async function generateAndDownloadEpimPdf(params: {
 
     const rLine4 = (
       doc.splitTextToSize(
-        cleanPdfText(`Registros: ${totalEncuentros} encuentro(s)`),
+        cleanPdfText(`Registros: ${encuentrosCountLabel}`),
         rightMetaWidth
       ) as string[]
     )[0];

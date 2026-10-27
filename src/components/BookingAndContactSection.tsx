@@ -6,6 +6,8 @@ import {
   formatSingleDateEs,
   getEncounterDates,
   MARACAIBO_ARCIPRESTAZGOS,
+  normalizeArciprestazgoName,
+  normalizeParroquiaName,
 } from '../data/maracaiboCatalog.ts';
 import { submitPublicInquiry, submitPublicReservation } from '../services/api.ts';
 
@@ -299,8 +301,13 @@ export const BookingAndContactSection: React.FC<BookingAndContactSectionProps> =
                       <div>
                         <dt className="text-zinc-500">Parroquia Sede EPIM</dt>
                         <dd className="mt-0.5 font-semibold text-zinc-900">
-                          {confirmedReservation.parroquiaEpim}
+                          {normalizeParroquiaName(confirmedReservation.parroquiaEpim)}
                         </dd>
+                        {confirmedReservation.arciprestazgo && (
+                          <dd className="text-zinc-500">
+                            {normalizeArciprestazgoName(confirmedReservation.arciprestazgo)}
+                          </dd>
+                        )}
                       </div>
                       <div>
                         <dt className="text-zinc-500">Fechas del Encuentro</dt>
@@ -375,7 +382,8 @@ export const BookingAndContactSection: React.FC<BookingAndContactSectionProps> =
                           const disp = Math.max(0, enc.cuposTotales - enc.cuposReservados);
                           return (
                             <option key={enc.id} value={enc.id}>
-                              {formatEncounterDatesEs(enc)} — {enc.parroquia} ({disp} cupos disp.)
+                              {formatEncounterDatesEs(enc)} — {normalizeParroquiaName(enc.parroquia)} ·{' '}
+                              {normalizeArciprestazgoName(enc.arciprestazgo)} ({disp} cupos disp.)
                             </option>
                           );
                         })}

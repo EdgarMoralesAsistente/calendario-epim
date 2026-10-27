@@ -35,7 +35,9 @@ import {
   LOGO_URL_FALLBACK,
   LOGO_URL_PRIMARY,
   MARACAIBO_ARCIPRESTAZGOS,
+  normalizeArciprestazgoName,
   normalizeIndividualDates,
+  normalizeParroquiaName,
 } from '../data/maracaiboCatalog.ts';
 import {
   getAccessToken,
@@ -313,7 +315,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     if (store) {
       for (const enc of store.encounters) {
         if (enc.year === selectedAdminYear && enc.arciprestazgo) {
-          set.add(enc.arciprestazgo);
+          set.add(normalizeArciprestazgoName(enc.arciprestazgo));
         }
       }
     }
@@ -350,13 +352,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
     const arcMap = new Map<string, { encuentros: number; disponibles: number; totales: number }>();
     for (const e of encs) {
-      const cur = arcMap.get(e.arciprestazgo) || { encuentros: 0, disponibles: 0, totales: 0 };
+      const arcName = normalizeArciprestazgoName(e.arciprestazgo);
+      const cur = arcMap.get(arcName) || { encuentros: 0, disponibles: 0, totales: 0 };
       cur.encuentros += 1;
       cur.totales += e.cuposTotales;
       if (e.estado === 'abierto') {
         cur.disponibles += Math.max(0, e.cuposTotales - e.cuposReservados);
       }
-      arcMap.set(e.arciprestazgo, cur);
+      arcMap.set(arcName, cur);
     }
 
     return {
@@ -379,12 +382,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     const q = adminEncSearch.trim().toLowerCase();
     return store.encounters
       .filter((e) => e.year === selectedAdminYear)
-      .filter((e) => adminEncFilterArc === 'todos' || e.arciprestazgo === adminEncFilterArc)
+      .filter(
+        (e) =>
+          adminEncFilterArc === 'todos' ||
+          normalizeArciprestazgoName(e.arciprestazgo) === adminEncFilterArc
+      )
       .filter((e) => {
         if (!q) return true;
         return [
-          e.parroquia,
-          e.arciprestazgo,
+          normalizeParroquiaName(e.parroquia),
+          normalizeArciprestazgoName(e.arciprestazgo),
           e.telefonoContacto,
           e.coordinadores,
           e.fechaInicio,
@@ -440,8 +447,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const openEditEncounter = (enc: EpimEncounter) => {
     setEditingEncounter(enc);
     setFormYear(enc.year);
-    setFormArciprestazgo(enc.arciprestazgo);
-    setFormParroquia(enc.parroquia);
+    setFormArciprestazgo(normalizeArciprestazgoName(enc.arciprestazgo));
+    setFormParroquia(normalizeParroquiaName(enc.parroquia));
     const existingDates = getEncounterDates(enc);
     setFormFechas(
       existingDates.length >= 2
@@ -1333,7 +1340,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       <table className="w-full border-collapse text-left text-xs sm:text-sm">
                         <thead>
                           <tr className="border-b border-zinc-200 text-zinc-500">
-                            <th className="py-2.5 pr-4 font-semibold">Arciprestazgo / Zona Pastoral</th>
+                            <th className="py-2.5 pr-4 font-semibold">Arciprestazgo</th>
                             <th className="px-4 py-2.5 text-right font-semibold">Encuentros</th>
                             <th className="px-4 py-2.5 text-right font-semibold">Cupos Disponibles</th>
                             <th className="py-2.5 pl-4 text-right font-semibold">Capacidad Total</th>
@@ -1467,8 +1474,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                                 </div>
                               </td>
                               <td className="px-3 py-3.5 align-top">
-                                <div className="font-semibold text-zinc-900">{enc.parroquia}</div>
-                                <div className="text-xs text-zinc-500">{enc.arciprestazgo}</div>
+                                <div className="font-semibold text-zinc-900">
+                                  {normalizeParroquiaName(enc.parroquia)}
+                                </div>
+                                <div className="text-xs text-zinc-500">
+                                  {normalizeArciprestazgoName(enc.arciprestazgo)}
+                                </div>
                               </td>
                               <td className="px-3 py-3.5 align-top">
                                 <div className="font-mono text-xs text-zinc-800 tabular-nums">
@@ -1889,7 +1900,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       .filter((e) => e.year === selectedAdminYear)
                       .map((e) => (
                         <option key={e.id} value={e.id}>
-                          {formatMonthName(e.mes)} — {e.parroquia}
+                          {formatMonthName(e.mes)} — {normalizeParroquiaName(e.parroquia)}
                         </option>
                       ))}
                   </select>
@@ -1936,7 +1947,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                               )}
                             </td>
                             <td className="px-3 py-3.5 align-top">
-                              <div className="font-medium text-zinc-900">{resItem.parroquiaEpim}</div>
+                              <div className="font-medium text-zinc-900">
+                                {normalizeParroquiaName(resItem.parroquiaEpim)}
+                              </div>
                               <div className="text-xs text-zinc-500">{resItem.fechasEpim}</div>
                             </td>
                             <td className="px-3 py-3.5 align-top">

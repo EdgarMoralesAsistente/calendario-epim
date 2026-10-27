@@ -5,7 +5,10 @@ import dotenv from 'dotenv';
 import {
   createInitialStore,
   formatEncounterDatesEs,
+  normalizeArciprestazgoName,
+  normalizeEpimStoreNames,
   normalizeIndividualDates,
+  normalizeParroquiaName,
 } from '../data/maracaiboCatalog.js';
 import type {
   AnnualParishBatchItem,
@@ -58,7 +61,7 @@ function loadStore(): EpimStore {
         ) {
           parsed.config.secretariadoTelefono = '+58 414-6184520';
         }
-        return parsed;
+        return normalizeEpimStoreNames(parsed);
       }
     }
   } catch (err) {
@@ -78,6 +81,7 @@ function saveStore(targetStore: EpimStore): void {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
+    normalizeEpimStoreNames(targetStore);
     const yearSet = new Set<number>(targetStore.config.availableYears || []);
     yearSet.add(targetStore.config.publicYear);
     for (const enc of targetStore.encounters) {
@@ -392,15 +396,17 @@ export function createApiApp() {
       codigoReserva: `EPIM-${encounter.year}-${randomDigits}`,
       encounterId: encounter.id,
       year: encounter.year,
-      parroquiaEpim: encounter.parroquia,
-      arciprestazgo: encounter.arciprestazgo,
+      parroquiaEpim: normalizeParroquiaName(encounter.parroquia),
+      arciprestazgo: normalizeArciprestazgoName(encounter.arciprestazgo),
       fechasEpim: formatEncounterDatesEs(encounter),
       nombreNovia: nombreNovia.trim().slice(0, 120),
       nombreNovio: nombreNovio.trim().slice(0, 120),
       documentoIdentidad: (documentoIdentidad || '').trim().slice(0, 80),
       telefonoPareja: telefonoPareja.trim().slice(0, 50),
       correoPareja: (correoPareja || '').trim().slice(0, 120),
-      parroquiaMatrimonio: (parroquiaMatrimonio || '').trim().slice(0, 140),
+      parroquiaMatrimonio: parroquiaMatrimonio?.trim()
+        ? normalizeParroquiaName(parroquiaMatrimonio).slice(0, 140)
+        : '',
       fechaPrevistaBoda: (fechaPrevistaBoda || '').trim().slice(0, 30),
       observaciones: (observaciones || '').trim().slice(0, 400),
       estado: 'confirmada',
@@ -444,8 +450,12 @@ export function createApiApp() {
       rolRemitente: rolRemitente || 'Pareja de novios',
       telefono: telefono.trim().slice(0, 50),
       correo: (correo || '').trim().slice(0, 120),
-      arciprestazgoInteres: (arciprestazgoInteres || '').trim().slice(0, 140),
-      parroquiaInteres: (parroquiaInteres || '').trim().slice(0, 140),
+      arciprestazgoInteres: arciprestazgoInteres?.trim()
+        ? normalizeArciprestazgoName(arciprestazgoInteres).slice(0, 140)
+        : '',
+      parroquiaInteres: parroquiaInteres?.trim()
+        ? normalizeParroquiaName(parroquiaInteres).slice(0, 140)
+        : '',
       mensaje: mensaje.trim().slice(0, 1000),
       estado: 'pendiente',
       createdAt: new Date().toISOString(),
@@ -604,8 +614,8 @@ export function createApiApp() {
       const encounter: EpimEncounter = {
         id: `epim-${parsedYear}-${Date.now()}`,
         year: parsedYear,
-        arciprestazgo: body.arciprestazgo.trim(),
-        parroquia: body.parroquia.trim(),
+        arciprestazgo: normalizeArciprestazgoName(body.arciprestazgo),
+        parroquia: normalizeParroquiaName(body.parroquia),
         mes: parsedMonth,
         fechaInicio: firstDate,
         fechaFin: lastDate,
@@ -679,8 +689,8 @@ export function createApiApp() {
         const enc: EpimEncounter = {
           id: `epim-${year}-${Date.now()}-${idx}`,
           year: Number(year),
-          arciprestazgo: arciprestazgo.trim(),
-          parroquia: parroquia.trim(),
+          arciprestazgo: normalizeArciprestazgoName(arciprestazgo),
+          parroquia: normalizeParroquiaName(parroquia),
           mes: mesFromDate,
           fechaInicio: firstDate,
           fechaFin: lastDate,
@@ -755,8 +765,12 @@ export function createApiApp() {
       const updatedEncounter: EpimEncounter = {
         ...existing,
         year: body.year !== undefined ? Number(body.year) : existing.year,
-        arciprestazgo: body.arciprestazgo?.trim() ?? existing.arciprestazgo,
-        parroquia: body.parroquia?.trim() ?? existing.parroquia,
+        arciprestazgo: normalizeArciprestazgoName(
+          body.arciprestazgo?.trim() ?? existing.arciprestazgo
+        ),
+        parroquia: normalizeParroquiaName(
+          body.parroquia?.trim() ?? existing.parroquia
+        ),
         mes,
         fechaInicio,
         fechaFin,
@@ -878,15 +892,17 @@ export function createApiApp() {
           .json({ error: 'Indica el arciprestazgo y el nombre de la parroquia.' });
         return;
       }
+      const normArc = normalizeArciprestazgoName(arciprestazgo);
+      const normPar = normalizeParroquiaName(parroquia);
       const exists = store.customParishes.some(
         (p) =>
-          p.arciprestazgo.toLowerCase() === arciprestazgo.trim().toLowerCase() &&
-          p.parroquia.toLowerCase() === parroquia.trim().toLowerCase()
+          p.arciprestazgo.toLowerCase() === normArc.toLowerCase() &&
+          p.parroquia.toLowerCase() === normPar.toLowerCase()
       );
       if (!exists) {
         store.customParishes.push({
-          arciprestazgo: arciprestazgo.trim(),
-          parroquia: parroquia.trim(),
+          arciprestazgo: normArc,
+          parroquia: normPar,
         });
         saveStore(store);
       }

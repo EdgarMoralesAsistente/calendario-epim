@@ -2,12 +2,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { FileDown, RotateCcw } from 'lucide-react';
 import type { EpimStore } from '../types/epim.ts';
 import {
-  formatEncounterDatesEs,
-  formatSingleDateEs,
-  getEncounterDates,
+  getGroupedEncounterDatesEs,
   LOGO_URL_FALLBACK,
   LOGO_URL_PRIMARY,
   MARACAIBO_ARCIPRESTAZGOS,
+  normalizeArciprestazgoName,
+  normalizeParroquiaName,
 } from '../data/maracaiboCatalog.ts';
 import {
   type EpimReportFilters,
@@ -48,7 +48,7 @@ export const AdminReportsSection: React.FC<AdminReportsSectionProps> = ({
     const base = MARACAIBO_ARCIPRESTAZGOS.map((g) => g.nombre);
     const set = new Set(base);
     for (const enc of store.encounters) {
-      if (enc.arciprestazgo) set.add(enc.arciprestazgo);
+      if (enc.arciprestazgo) set.add(normalizeArciprestazgoName(enc.arciprestazgo));
     }
     return Array.from(set);
   }, [store.encounters]);
@@ -58,10 +58,12 @@ export const AdminReportsSection: React.FC<AdminReportsSectionProps> = ({
     const countMap = new Map<string, number>();
     for (const enc of store.encounters) {
       if (filterYear !== 'todos' && enc.year !== filterYear) continue;
-      if (filterArciprestazgo !== 'todos' && enc.arciprestazgo !== filterArciprestazgo) {
+      const normArc = normalizeArciprestazgoName(enc.arciprestazgo);
+      const normPar = normalizeParroquiaName(enc.parroquia);
+      if (filterArciprestazgo !== 'todos' && normArc !== filterArciprestazgo) {
         continue;
       }
-      countMap.set(enc.parroquia, (countMap.get(enc.parroquia) || 0) + 1);
+      countMap.set(normPar, (countMap.get(normPar) || 0) + 1);
     }
 
     const parishSet = new Set<string>();
@@ -71,8 +73,10 @@ export const AdminReportsSection: React.FC<AdminReportsSectionProps> = ({
       }
     }
     for (const cp of store.customParishes) {
-      if (filterArciprestazgo === 'todos' || cp.arciprestazgo === filterArciprestazgo) {
-        parishSet.add(cp.parroquia);
+      const normArc = normalizeArciprestazgoName(cp.arciprestazgo);
+      const normPar = normalizeParroquiaName(cp.parroquia);
+      if (filterArciprestazgo === 'todos' || normArc === filterArciprestazgo) {
+        parishSet.add(normPar);
       }
     }
     for (const p of countMap.keys()) {
@@ -426,8 +430,10 @@ export const AdminReportsSection: React.FC<AdminReportsSectionProps> = ({
                   : `Programación Año ${filterYear}`}
               </p>
               <p className="mt-0.5">
-                {summaryStats.totalEncuentros} encuentro(s) ·{' '}
-                {summaryStats.uniqueParishes} parroquia(s)
+                {summaryStats.totalEncuentros}{' '}
+                {summaryStats.totalEncuentros === 1 ? 'encuentro' : 'encuentros'} ·{' '}
+                {summaryStats.uniqueParishes}{' '}
+                {summaryStats.uniqueParishes === 1 ? 'parroquia' : 'parroquias'}
               </p>
               <p className="mt-0.5 text-zinc-500">
                 Disponibles: {summaryStats.totalDisponibles} de {summaryStats.totalCupos}{' '}
@@ -445,7 +451,7 @@ export const AdminReportsSection: React.FC<AdminReportsSectionProps> = ({
               </p>
             </div>
             <div className="rounded-lg border border-zinc-200 bg-zinc-50/60 p-3.5">
-              <p className="text-xs text-zinc-500">Zonas y Parroquias</p>
+              <p className="text-xs text-zinc-500">Arciprestazgos y Parroquias</p>
               <p className="mt-1 font-display text-xl font-bold text-zinc-900 tabular-nums">
                 {summaryStats.totalArciprestazgos} · {summaryStats.uniqueParishes}
               </p>
@@ -490,8 +496,9 @@ export const AdminReportsSection: React.FC<AdminReportsSectionProps> = ({
                       {group.arciprestazgo}
                     </h4>
                     <span className="text-xs text-zinc-700 tabular-nums">
-                      {group.encounters.length} encuentro(s) · {group.totalDisponibles}{' '}
-                      cupos disponibles de {group.totalCupos}
+                      {group.encounters.length}{' '}
+                      {group.encounters.length === 1 ? 'encuentro' : 'encuentros'} · Cupos
+                      disponibles: {group.totalDisponibles} de {group.totalCupos}
                     </span>
                   </div>
 
@@ -503,7 +510,7 @@ export const AdminReportsSection: React.FC<AdminReportsSectionProps> = ({
                             Parroquia Sede y Lugar
                           </th>
                           <th className="py-2.5 px-4 font-semibold">
-                            Fechas Individuales Programadas
+                            Fechas Programadas
                           </th>
                           <th className="py-2.5 px-4 font-semibold">
                             Horario y Contacto
@@ -515,7 +522,7 @@ export const AdminReportsSection: React.FC<AdminReportsSectionProps> = ({
                       </thead>
                       <tbody className="divide-y divide-zinc-100">
                         {group.encounters.map((enc) => {
-                          const dates = getEncounterDates(enc);
+                          const dateSummary = getGroupedEncounterDatesEs(enc);
                           const disp = Math.max(
                             0,
                             enc.cuposTotales - enc.cuposReservados
@@ -533,16 +540,21 @@ export const AdminReportsSection: React.FC<AdminReportsSectionProps> = ({
                               </td>
 
                               <td className="py-3 px-4 tabular-nums">
-                                <p className="font-semibold text-zinc-900">
-                                  {formatEncounterDatesEs(enc)}
+                                <p className="font-bold text-[#DC1F26]">
+                                  {dateSummary.monthsHeadline || 'Fechas por confirmar'}
                                 </p>
-                                <ul className="mt-1 space-y-0.5 text-[11px] text-zinc-600">
-                                  {dates.map((iso, idx) => (
-                                    <li key={iso}>
-                                      · Fecha {idx + 1}: {formatSingleDateEs(iso)}
-                                    </li>
-                                  ))}
-                                </ul>
+                                {dateSummary.groups.length > 0 && (
+                                  <div className="mt-1 space-y-0.5 text-xs text-zinc-700">
+                                    {dateSummary.groups.map((grp) => (
+                                      <p key={`${grp.year}-${grp.month}`}>
+                                        <span className="font-semibold text-zinc-900">
+                                          {grp.monthName} {grp.year}:
+                                        </span>{' '}
+                                        <span>{grp.daysLabel}</span>
+                                      </p>
+                                    ))}
+                                  </div>
+                                )}
                               </td>
 
                               <td className="py-3 px-4">

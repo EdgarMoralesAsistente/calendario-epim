@@ -10,6 +10,7 @@ import {
   formatEncounterDatesEs,
   LOGO_URL_FALLBACK,
   LOGO_URL_PRIMARY,
+  normalizeParroquiaName,
 } from './data/maracaiboCatalog.ts';
 import { fetchPublicBoard } from './services/api.ts';
 import { getAccessToken, initAuth } from './services/authService.ts';
@@ -147,7 +148,7 @@ export default function App() {
 
   const summaryStats = useMemo(() => {
     const encounters = board?.encounters || [];
-    const parroquiasSet = new Set(encounters.map((e) => e.parroquia));
+    const parroquiasSet = new Set(encounters.map((e) => normalizeParroquiaName(e.parroquia)));
     const openEncounters = encounters.filter(
       (e) => e.estado === 'abierto' && e.cuposTotales - e.cuposReservados > 0
     );
@@ -261,7 +262,7 @@ export default function App() {
                       }
                       className="font-semibold text-[#DC1F26] hover:underline"
                     >
-                      {summaryStats.nextEncounter.parroquia} (
+                      {normalizeParroquiaName(summaryStats.nextEncounter.parroquia)} (
                       {formatEncounterDatesEs(summaryStats.nextEncounter)})
                     </button>
                   </div>
