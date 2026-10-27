@@ -1,4 +1,12 @@
-import type { EpimStore } from '../types/epim.js';
+import type {
+  EpimStore,
+  Inquiry,
+  InquiryChannel,
+  InquiryChecklistItem,
+  InquiryHistoryEntry,
+  InquiryPriority,
+  InquiryStage,
+} from '../types/epim.js';
 
 export const LOGO_URL_PRIMARY =
   'https://res.cloudinary.com/djvpapwvq/image/upload/v1789603448/Logo_del_Secretariado_de_Pastoral_Familiar_Sin_fondo_nffmht.png';
@@ -210,8 +218,172 @@ export function getShortArciprestazgoLabel(arciprestazgo: string): string {
   return normalized;
 }
 
+export const INQUIRY_STAGES: Array<{
+  id: InquiryStage;
+  label: string;
+  shortLabel: string;
+  description: string;
+}> = [
+  {
+    id: 'nuevas',
+    label: 'Recibidas / Por revisar',
+    shortLabel: 'Recibidas',
+    description: 'Consultas nuevas pendientes de primer contacto',
+  },
+  {
+    id: 'en_seguimiento',
+    label: 'En seguimiento',
+    shortLabel: 'En seguimiento',
+    description: 'En gestión activa por parte del Secretariado',
+  },
+  {
+    id: 'esperando_respuesta',
+    label: 'Esperando confirmación',
+    shortLabel: 'Esperando confirmación',
+    description: 'A la espera de datos de los novios o del párroco',
+  },
+  {
+    id: 'atendidas',
+    label: 'Atendidas / Resueltas',
+    shortLabel: 'Atendidas',
+    description: 'Orientación o solicitud completada satisfactoriamente',
+  },
+];
+
+export function getInquiryStageLabel(stage?: InquiryStage): string {
+  return (
+    INQUIRY_STAGES.find((s) => s.id === stage)?.shortLabel || 'Recibidas'
+  );
+}
+
+const VALID_STAGES: InquiryStage[] = [
+  'nuevas',
+  'en_seguimiento',
+  'esperando_respuesta',
+  'atendidas',
+];
+
+const VALID_PRIORITIES: InquiryPriority[] = ['alta', 'media', 'baja'];
+
+const VALID_CHANNELS: InquiryChannel[] = [
+  'Formulario Web',
+  'WhatsApp',
+  'Llamada telefónica',
+  'Correo electrónico',
+  'Presencial',
+];
+
+const VALID_ROLES: Inquiry['rolRemitente'][] = [
+  'Pareja de novios',
+  'Sacerdote / Diácono',
+  'Agente de Pastoral',
+  'Otro',
+];
+
+export function buildDefaultInquirySubject(inq: Partial<Inquiry>): string {
+  if (inq.asunto?.trim()) return inq.asunto.trim();
+  const parish = inq.parroquiaInteres?.trim()
+    ? normalizeParroquiaName(inq.parroquiaInteres)
+    : '';
+  if (inq.rolRemitente === 'Sacerdote / Diácono') {
+    return parish ? `Solicitud parroquial · ${parish}` : 'Consulta pastoral de clero';
+  }
+  if (inq.rolRemitente === 'Agente de Pastoral') {
+    return parish ? `Coordinación pastoral · ${parish}` : 'Consulta de agente pastoral';
+  }
+  return parish ? `Consulta EPIM · ${parish}` : `Consulta de ${inq.nombreRemitente || 'remitente'}`;
+}
+
+export function normalizeInquiryRecord(raw: Inquiry): Inquiry {
+  const createdAt = raw.createdAt || new Date().toISOString();
+  const rolRemitente: Inquiry['rolRemitente'] = VALID_ROLES.includes(raw.rolRemitente)
+    ? raw.rolRemitente
+    : 'Pareja de novios';
+
+  let etapa: InquiryStage;
+  if (raw.etapa && VALID_STAGES.includes(raw.etapa)) {
+    etapa = raw.etapa;
+  } else {
+    etapa = raw.estado === 'atendida' ? 'atendidas' : 'nuevas';
+  }
+
+  const estado: Inquiry['estado'] = etapa === 'atendidas' ? 'atendida' : 'pendiente';
+  const prioridad: InquiryPriority =
+    raw.prioridad && VALID_PRIORITIES.includes(raw.prioridad)
+      ? raw.prioridad
+      : rolRemitente === 'Sacerdote / Diácono'
+      ? 'alta'
+      : 'media';
+
+  const canalOrigen: InquiryChannel =
+    raw.canalOrigen && VALID_CHANNELS.includes(raw.canalOrigen)
+      ? raw.canalOrigen
+      : 'Formulario Web';
+
+  const arciprestazgoInteres = raw.arciprestazgoInteres?.trim()
+    ? normalizeArciprestazgoName(raw.arciprestazgoInteres)
+    : '';
+  const parroquiaInteres = raw.parroquiaInteres?.trim()
+    ? normalizeParroquiaName(raw.parroquiaInteres)
+    : '';
+
+  const checklist: InquiryChecklistItem[] = Array.isArray(raw.checklist)
+    ? raw.checklist
+        .filter((item) => item && typeof item.texto === 'string' && item.texto.trim())
+        .map((item, idx) => ({
+          id: item.id || `${raw.id}-chk-${idx + 1}`,
+          texto: item.texto.trim(),
+          completado: Boolean(item.completado),
+        }))
+    : [];
+
+  const historial: InquiryHistoryEntry[] =
+    Array.isArray(raw.historial) && raw.historial.length > 0
+      ? raw.historial
+          .filter((h) => h && typeof h.texto === 'string' && h.texto.trim())
+          .map((h, idx) => ({
+            id: h.id || `${raw.id}-hist-${idx + 1}`,
+            tipo: h.tipo || 'nota',
+            autor: h.autor || 'Secretariado',
+            texto: h.texto.trim(),
+            createdAt: h.createdAt || createdAt,
+          }))
+      : [
+          {
+            id: `${raw.id}-hist-init`,
+            tipo: 'creacion',
+            autor: raw.nombreRemitente || 'Formulario Web',
+            texto: `Consulta registrada por ${canalOrigen.toLowerCase()}.`,
+            createdAt,
+          },
+        ];
+
+  return {
+    ...raw,
+    asunto: raw.asunto?.trim() || buildDefaultInquirySubject({ ...raw, rolRemitente, parroquiaInteres }),
+    nombreRemitente: (raw.nombreRemitente || '').trim(),
+    rolRemitente,
+    telefono: (raw.telefono || '').trim(),
+    correo: (raw.correo || '').trim(),
+    arciprestazgoInteres,
+    parroquiaInteres,
+    mensaje: (raw.mensaje || '').trim(),
+    estado,
+    etapa,
+    prioridad,
+    responsable: (raw.responsable || '').trim(),
+    fechaSeguimiento: (raw.fechaSeguimiento || '').trim(),
+    canalOrigen,
+    notasInternas: (raw.notasInternas || '').trim(),
+    checklist,
+    historial,
+    createdAt,
+    updatedAt: raw.updatedAt || createdAt,
+  };
+}
+
 /**
- * Normalizes all arciprestazgo and parroquia fields across an EpimStore in place.
+ * Normalizes all arciprestazgo, parroquia, and inquiry fields across an EpimStore in place.
  */
 export function normalizeEpimStoreNames(store: EpimStore): EpimStore {
   if (Array.isArray(store.encounters)) {
@@ -231,14 +403,7 @@ export function normalizeEpimStoreNames(store: EpimStore): EpimStore {
     }
   }
   if (Array.isArray(store.inquiries)) {
-    for (const inq of store.inquiries) {
-      if (inq.arciprestazgoInteres?.trim()) {
-        inq.arciprestazgoInteres = normalizeArciprestazgoName(inq.arciprestazgoInteres);
-      }
-      if (inq.parroquiaInteres?.trim()) {
-        inq.parroquiaInteres = normalizeParroquiaName(inq.parroquiaInteres);
-      }
-    }
+    store.inquiries = store.inquiries.map((inq) => normalizeInquiryRecord(inq));
   }
   if (Array.isArray(store.customParishes)) {
     for (const cp of store.customParishes) {

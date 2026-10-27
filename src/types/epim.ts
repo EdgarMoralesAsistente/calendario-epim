@@ -44,8 +44,46 @@ export interface Reservation {
   createdAt: string;
 }
 
+export type InquiryStage =
+  | 'nuevas'
+  | 'en_seguimiento'
+  | 'esperando_respuesta'
+  | 'atendidas';
+
+export type InquiryPriority = 'alta' | 'media' | 'baja';
+
+export type InquiryChannel =
+  | 'Formulario Web'
+  | 'WhatsApp'
+  | 'Llamada telefónica'
+  | 'Correo electrónico'
+  | 'Presencial';
+
+export interface InquiryChecklistItem {
+  id: string;
+  texto: string;
+  completado: boolean;
+}
+
+export type InquiryHistoryType =
+  | 'creacion'
+  | 'nota'
+  | 'contacto'
+  | 'cambio_etapa'
+  | 'edicion'
+  | 'checklist';
+
+export interface InquiryHistoryEntry {
+  id: string;
+  tipo: InquiryHistoryType;
+  autor: string;
+  texto: string;
+  createdAt: string;
+}
+
 export interface Inquiry {
   id: string;
+  asunto?: string;
   nombreRemitente: string;
   rolRemitente: 'Pareja de novios' | 'Sacerdote / Diácono' | 'Agente de Pastoral' | 'Otro';
   telefono: string;
@@ -54,7 +92,16 @@ export interface Inquiry {
   parroquiaInteres: string;
   mensaje: string;
   estado: 'pendiente' | 'atendida';
+  etapa?: InquiryStage;
+  prioridad?: InquiryPriority;
+  responsable?: string;
+  fechaSeguimiento?: string; // YYYY-MM-DD
+  canalOrigen?: InquiryChannel;
+  notasInternas?: string;
+  checklist?: InquiryChecklistItem[];
+  historial?: InquiryHistoryEntry[];
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface AppConfig {

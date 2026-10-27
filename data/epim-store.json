@@ -8,7 +8,7 @@
     "spreadsheetId": "1fi0tziUAv-_Qt0Sop6INgQQuawPFGh6U7dyxpX6TxWc",
     "spreadsheetUrl": "https://docs.google.com/spreadsheets/d/1fi0tziUAv-_Qt0Sop6INgQQuawPFGh6U7dyxpX6TxWc/edit",
     "spreadsheetTitle": "EPIM - Arquidiócesis de Maracaibo (Base de Datos)",
-    "lastSyncedAt": "2026-10-27T12:22:08.547Z",
+    "lastSyncedAt": "2026-10-27T17:23:05.943Z",
     "authorizedAdmins": [
       "lapastoralfamiliar.mcbo@gmail.com"
     ],
@@ -22,16 +22,16 @@
       "year": 2027,
       "arciprestazgo": "Arciprestazgo 2. Sagrado Corazón de Jesús",
       "parroquia": "Parroquia Ntra. Sra. del Rosario",
-      "mes": 4,
-      "fechaInicio": "2027-04-09",
-      "fechaFin": "2027-04-24",
+      "mes": 3,
+      "fechaInicio": "2027-03-05",
+      "fechaFin": "2027-03-20",
       "fechas": [
-        "2027-04-09",
-        "2027-04-10",
-        "2027-04-16",
-        "2027-04-17",
-        "2027-04-23",
-        "2027-04-24"
+        "2027-03-05",
+        "2027-03-06",
+        "2027-03-12",
+        "2027-03-13",
+        "2027-03-19",
+        "2027-03-20"
       ],
       "horario": "Viernes y Sábados 06:00p.m. – 08:00p.m.",
       "sedeDetalle": "Salón Parroquial",
@@ -41,7 +41,7 @@
       "cuposReservados": 0,
       "aporteInfo": "",
       "estado": "abierto",
-      "updatedAt": "2026-10-25T22:07:20.209Z"
+      "updatedAt": "2026-10-27T15:25:14.759Z"
     },
     {
       "id": "epim-2027-1792966322545",
@@ -49,15 +49,15 @@
       "arciprestazgo": "Arciprestazgo 2. Sagrado Corazón de Jesús",
       "parroquia": "Parroquia Ntra. Sra. del Rosario",
       "mes": 9,
-      "fechaInicio": "2027-09-10",
-      "fechaFin": "2027-09-25",
+      "fechaInicio": "2027-09-03",
+      "fechaFin": "2027-09-18",
       "fechas": [
+        "2027-09-03",
+        "2027-09-04",
         "2027-09-10",
         "2027-09-11",
         "2027-09-17",
-        "2027-09-18",
-        "2027-09-24",
-        "2027-09-25"
+        "2027-09-18"
       ],
       "horario": "Viernes y Sábados 06:30p.m. – 08:00p.m.",
       "sedeDetalle": "Salón Parroquial",
@@ -67,7 +67,7 @@
       "cuposReservados": 0,
       "aporteInfo": "",
       "estado": "abierto",
-      "updatedAt": "2026-10-25T22:12:02.546Z"
+      "updatedAt": "2026-10-27T15:26:13.037Z"
     },
     {
       "id": "epim-2027-1792966478949",
@@ -551,6 +551,83 @@
       "aporteInfo": "",
       "estado": "abierto",
       "updatedAt": "2026-10-27T12:22:08.220Z"
+    },
+    {
+      "id": "epim-2027-1793115004142",
+      "year": 2027,
+      "arciprestazgo": "Arciprestazgo 3. La Sagrada Familia",
+      "parroquia": "Parroquia San Pedro Apóstol",
+      "mes": 9,
+      "fechaInicio": "2027-09-06",
+      "fechaFin": "2027-10-25",
+      "fechas": [
+        "2027-09-06",
+        "2027-09-13",
+        "2027-09-20",
+        "2027-09-27",
+        "2027-10-04",
+        "2027-10-11",
+        "2027-10-18",
+        "2027-10-25"
+      ],
+      "horario": "Lunes 06:00p.m. – 09:30p.m.",
+      "sedeDetalle": "Salón Parroquial",
+      "telefonoContacto": "+584145094803",
+      "coordinadores": "José Rodríguez",
+      "cuposTotales": 25,
+      "cuposReservados": 0,
+      "aporteInfo": "",
+      "estado": "abierto",
+      "updatedAt": "2026-10-27T15:30:04.142Z"
+    },
+    {
+      "id": "epim-2027-1793115155769",
+      "year": 2027,
+      "arciprestazgo": "Arciprestazgo 2. Sagrado Corazón de Jesús",
+      "parroquia": "Parroquia Ntra. Sra. del Perpetuo Socorro",
+      "mes": 9,
+      "fechaInicio": "2027-09-04",
+      "fechaFin": "2027-09-12",
+      "fechas": [
+        "2027-09-04",
+        "2027-09-05",
+        "2027-09-11",
+        "2027-09-12"
+      ],
+      "horario": "Sábados 08:00a.m. – 05:00p.m. · Domingo 08:00a.m. – 05:00p.m. · (Día del cierre Dom. 08:00a.m. - 12:00p.m.)",
+      "sedeDetalle": "Salón Parroquial",
+      "telefonoContacto": "+584147363246",
+      "coordinadores": "Pablo Finol Y Andrea Urdaneta de Finol",
+      "cuposTotales": 25,
+      "cuposReservados": 0,
+      "aporteInfo": "",
+      "estado": "abierto",
+      "updatedAt": "2026-10-27T17:23:05.594Z"
+    },
+    {
+      "id": "epim-2027-1793121076862",
+      "year": 2027,
+      "arciprestazgo": "Arciprestazgo 5. San Francisco de Asís",
+      "parroquia": "Parroquia Santa Mariana de Jesús. Sur América",
+      "mes": 5,
+      "fechaInicio": "2027-05-15",
+      "fechaFin": "2027-05-29",
+      "fechas": [
+        "2027-05-15",
+        "2027-05-16",
+        "2027-05-22",
+        "2027-05-23",
+        "2027-05-29"
+      ],
+      "horario": "Sábados 2:30 p.m. – 6:00 p.m. · Domingo cierre 8:30 a.m. – 1:00 p.m.",
+      "sedeDetalle": "Salón Parroquial",
+      "telefonoContacto": "+584126980140",
+      "coordinadores": "Raiza de Agudelo",
+      "cuposTotales": 25,
+      "cuposReservados": 0,
+      "aporteInfo": "El EPIM terminará con un retiro para los participantes el día 29/May.",
+      "estado": "abierto",
+      "updatedAt": "2026-10-27T17:11:16.862Z"
     }
   ],
   "reservations": [
@@ -598,13 +675,31 @@
       "id": "inq-2026-01",
       "nombreRemitente": "Pbro. Eduardo Morán",
       "rolRemitente": "Sacerdote / Diácono",
-      "telefono": "#ERROR!",
+      "telefono": "",
       "correo": "despacho.santalucia@ejemplo.com",
       "arciprestazgoInteres": "Arciprestazgo 1. Ntra. Sra. de Chiquinquirá",
       "parroquiaInteres": "Parroquia Santa Lucía",
       "mensaje": "Bendiciones. Quisiéramos confirmar la fecha límite para remitir las tres parejas de nuestra comunidad al encuentro en La Consolación.",
       "estado": "pendiente",
-      "createdAt": "2026-10-23T16:10:00.000Z"
+      "createdAt": "2026-10-23T16:10:00.000Z",
+      "etapa": "nuevas",
+      "prioridad": "alta",
+      "asunto": "Solicitud parroquial · Parroquia Santa Lucía",
+      "responsable": "",
+      "fechaSeguimiento": "",
+      "canalOrigen": "Formulario Web",
+      "notasInternas": "",
+      "checklist": [],
+      "historial": [
+        {
+          "id": "inq-2026-01-hist-init",
+          "tipo": "creacion",
+          "autor": "Pbro. Eduardo Morán",
+          "texto": "Consulta registrada por formulario web.",
+          "createdAt": "2026-10-23T16:10:00.000Z"
+        }
+      ],
+      "updatedAt": "2026-10-23T16:10:00.000Z"
     }
   ],
   "customParishes": []

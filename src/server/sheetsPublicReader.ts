@@ -1,11 +1,30 @@
-import type { EpimEncounter, EpimStore, Inquiry, Reservation } from '../types/epim.js';
+import type {
+  EpimEncounter,
+  EpimStore,
+  Inquiry,
+  InquiryChecklistItem,
+  InquiryHistoryEntry,
+  Reservation,
+} from '../types/epim.js';
 import {
   MARACAIBO_ARCIPRESTAZGOS,
   normalizeArciprestazgoName,
+  normalizeInquiryRecord,
   normalizeParroquiaName,
   parseDatesFromSheet,
 } from '../data/maracaiboCatalog.js';
 import { extractSpreadsheetId } from '../services/sheetsService.js';
+
+function safeParseCsvJsonArray<T>(raw?: string): T[] | undefined {
+  const trimmed = (raw || '').trim();
+  if (!trimmed.startsWith('[')) return undefined;
+  try {
+    const parsed = JSON.parse(trimmed);
+    return Array.isArray(parsed) ? (parsed as T[]) : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 function cleanCellValue(val: string | undefined, fallback = ''): string {
   const trimmed = (val || '').trim();
@@ -214,27 +233,30 @@ export async function fetchStoreFromPublicSheet(
 
   const inquiries: Inquiry[] = (rawInquiries || [])
     .filter((row) => row.length >= 2 && row[1]?.trim())
-    .map((row, idx) => {
-      const rol = (row[2] || '').trim() as Inquiry['rolRemitente'];
-      const validRoles: Inquiry['rolRemitente'][] = [
-        'Pareja de novios',
-        'Sacerdote / Diácono',
-        'Agente de Pastoral',
-        'Otro',
-      ];
-      return {
+    .map((row, idx) =>
+      normalizeInquiryRecord({
         id: row[0]?.trim() || `inq-sheet-${idx + 1}`,
         nombreRemitente: row[1]?.trim() || '',
-        rolRemitente: validRoles.includes(rol) ? rol : 'Pareja de novios',
-        telefono: row[3]?.trim() || '',
+        rolRemitente: (row[2]?.trim() || 'Pareja de novios') as Inquiry['rolRemitente'],
+        telefono: cleanCellValue(row[3]),
         correo: row[4]?.trim() || '',
-        arciprestazgoInteres: row[5]?.trim() ? normalizeArciprestazgoName(row[5]) : '',
-        parroquiaInteres: row[6]?.trim() ? normalizeParroquiaName(row[6]) : '',
+        arciprestazgoInteres: row[5]?.trim() || '',
+        parroquiaInteres: row[6]?.trim() || '',
         mensaje: row[7]?.trim() || '',
         estado: row[8]?.trim() === 'atendida' ? 'atendida' : 'pendiente',
         createdAt: row[9]?.trim() || new Date().toISOString(),
-      };
-    });
+        etapa: (row[10]?.trim() || undefined) as Inquiry['etapa'],
+        prioridad: (row[11]?.trim() || undefined) as Inquiry['prioridad'],
+        asunto: row[12]?.trim() || undefined,
+        responsable: row[13]?.trim() || undefined,
+        fechaSeguimiento: row[14]?.trim() || undefined,
+        canalOrigen: (row[15]?.trim() || undefined) as Inquiry['canalOrigen'],
+        notasInternas: row[16]?.trim() || undefined,
+        checklist: safeParseCsvJsonArray<InquiryChecklistItem>(row[17]),
+        historial: safeParseCsvJsonArray<InquiryHistoryEntry>(row[18]),
+        updatedAt: row[19]?.trim() || row[9]?.trim() || new Date().toISOString(),
+      })
+    );
 
   const availableYearsRaw = configMap.get('availableYears');
   const parsedYears = availableYearsRaw

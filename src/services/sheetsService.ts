@@ -1,11 +1,30 @@
-import type { EpimEncounter, EpimStore, Inquiry, Reservation } from '../types/epim.js';
+import type {
+  EpimEncounter,
+  EpimStore,
+  Inquiry,
+  InquiryChecklistItem,
+  InquiryHistoryEntry,
+  Reservation,
+} from '../types/epim.js';
 import {
   MARACAIBO_ARCIPRESTAZGOS,
   normalizeArciprestazgoName,
+  normalizeInquiryRecord,
   normalizeParroquiaName,
   parseDatesFromSheet,
   serializeDatesForSheet,
 } from '../data/maracaiboCatalog.js';
+
+function safeParseJsonArray<T>(raw?: string): T[] | undefined {
+  const trimmed = (raw || '').trim();
+  if (!trimmed.startsWith('[')) return undefined;
+  try {
+    const parsed = JSON.parse(trimmed);
+    return Array.isArray(parsed) ? (parsed as T[]) : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 function cleanFormulaError(val: string | undefined, fallback = ''): string {
   const trimmed = (val || '').trim();
@@ -258,19 +277,43 @@ export async function pushStoreToSpreadsheet(
       'Mensaje',
       'Estado',
       'Fecha Consulta',
+      'Etapa Kanban',
+      'Prioridad',
+      'Asunto',
+      'Responsable',
+      'Fecha Seguimiento',
+      'Canal Origen',
+      'Notas Internas',
+      'Checklist (JSON)',
+      'Historial (JSON)',
+      'Última Actualización',
     ],
-    ...store.inquiries.map((q) => [
-      q.id,
-      q.nombreRemitente,
-      q.rolRemitente,
-      q.telefono,
-      q.correo,
-      q.arciprestazgoInteres?.trim() ? normalizeArciprestazgoName(q.arciprestazgoInteres) : '',
-      q.parroquiaInteres?.trim() ? normalizeParroquiaName(q.parroquiaInteres) : '',
-      q.mensaje,
-      q.estado,
-      q.createdAt,
-    ]),
+    ...store.inquiries.map((rawInq) => {
+      const q = normalizeInquiryRecord(rawInq);
+      const compactHistory = (q.historial || []).slice(-80);
+      return [
+        q.id,
+        q.nombreRemitente,
+        q.rolRemitente,
+        q.telefono,
+        q.correo,
+        q.arciprestazgoInteres,
+        q.parroquiaInteres,
+        q.mensaje,
+        q.estado,
+        q.createdAt,
+        q.etapa || 'nuevas',
+        q.prioridad || 'media',
+        q.asunto || '',
+        q.responsable || '',
+        q.fechaSeguimiento || '',
+        q.canalOrigen || 'Formulario Web',
+        q.notasInternas || '',
+        JSON.stringify(q.checklist || []),
+        JSON.stringify(compactHistory),
+        q.updatedAt || q.createdAt,
+      ];
+    }),
   ];
 
   const syncedAt = new Date().toISOString();
@@ -353,7 +396,7 @@ export async function pullStoreFromSpreadsheet(
   const ranges = [
     `ranges=${encodeURIComponent(`${REQUIRED_TABS.ENCUENTROS}!A2:R1500`)}`,
     `ranges=${encodeURIComponent(`${REQUIRED_TABS.RESERVACIONES}!A2:Q4000`)}`,
-    `ranges=${encodeURIComponent(`${REQUIRED_TABS.CONSULTAS}!A2:J2500`)}`,
+    `ranges=${encodeURIComponent(`${REQUIRED_TABS.CONSULTAS}!A2:T2500`)}`,
     `ranges=${encodeURIComponent(`${REQUIRED_TABS.CONFIGURACION}!A2:B50`)}`,
   ].join('&');
 
@@ -437,27 +480,30 @@ export async function pullStoreFromSpreadsheet(
 
   const inquiries: Inquiry[] = rawInquiries
     .filter((row) => row.length >= 2 && row[1])
-    .map((row, idx) => {
-      const rol = row[2] as Inquiry['rolRemitente'];
-      const validRoles: Inquiry['rolRemitente'][] = [
-        'Pareja de novios',
-        'Sacerdote / Diácono',
-        'Agente de Pastoral',
-        'Otro',
-      ];
-      return {
+    .map((row, idx) =>
+      normalizeInquiryRecord({
         id: row[0] || `inq-sheet-${idx + 1}`,
         nombreRemitente: row[1] || '',
-        rolRemitente: validRoles.includes(rol) ? rol : 'Pareja de novios',
-        telefono: row[3] || '',
+        rolRemitente: (row[2] || 'Pareja de novios') as Inquiry['rolRemitente'],
+        telefono: cleanFormulaError(row[3]),
         correo: row[4] || '',
-        arciprestazgoInteres: row[5]?.trim() ? normalizeArciprestazgoName(row[5]) : '',
-        parroquiaInteres: row[6]?.trim() ? normalizeParroquiaName(row[6]) : '',
+        arciprestazgoInteres: row[5] || '',
+        parroquiaInteres: row[6] || '',
         mensaje: row[7] || '',
         estado: row[8] === 'atendida' ? 'atendida' : 'pendiente',
         createdAt: row[9] || new Date().toISOString(),
-      };
-    });
+        etapa: (row[10] || undefined) as Inquiry['etapa'],
+        prioridad: (row[11] || undefined) as Inquiry['prioridad'],
+        asunto: row[12] || undefined,
+        responsable: row[13] || undefined,
+        fechaSeguimiento: row[14] || undefined,
+        canalOrigen: (row[15] || undefined) as Inquiry['canalOrigen'],
+        notasInternas: row[16] || undefined,
+        checklist: safeParseJsonArray<InquiryChecklistItem>(row[17]),
+        historial: safeParseJsonArray<InquiryHistoryEntry>(row[18]),
+        updatedAt: row[19] || row[9] || new Date().toISOString(),
+      })
+    );
 
   const configMap = new Map<string, string>();
   for (const row of rawConfig) {

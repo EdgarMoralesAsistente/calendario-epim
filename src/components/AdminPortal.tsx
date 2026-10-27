@@ -53,7 +53,6 @@ import {
   saveImportedSheetsData,
   updateAdminConfig,
   updateAdminEncounter,
-  updateInquiryStatus,
   updateReservationStatus,
 } from '../services/api.ts';
 import {
@@ -65,6 +64,7 @@ import {
 import { GoogleSignInButton } from './GoogleSignInButton.tsx';
 import { ConfirmModal } from './ConfirmModal.tsx';
 import { AdminReportsSection } from './AdminReportsSection.tsx';
+import { AdminInquiriesSection } from './AdminInquiriesSection.tsx';
 
 interface AdminPortalProps {
   onBackToPublic: () => void;
@@ -2030,98 +2030,15 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               </div>
             )}
 
-            {/* 5. BANDEJA DE CONSULTAS DIRECTAS */}
+            {/* 5. TABLERO KANBAN Y GESTIÓN INTEGRAL DE CONSULTAS DIRECTAS */}
             {activeSection === 'consultas' && (
-              <div className="rounded-xl border border-zinc-200 bg-white p-6">
-                <h2 className="font-display text-lg font-bold text-zinc-900">
-                  Consultas Directas Recibidas
-                </h2>
-                <p className="mt-0.5 text-xs text-zinc-500">
-                  Mensajes enviados desde el formulario público por novios, sacerdotes y agentes de pastoral.
-                </p>
-
-                {store.inquiries.length === 0 ? (
-                  <p className="mt-8 py-8 text-center text-sm text-zinc-500">
-                    No hay consultas registradas hasta el momento.
-                  </p>
-                ) : (
-                  <div className="mt-5 divide-y divide-zinc-200">
-                    {store.inquiries.map((inq) => {
-                      const cleanDigits = inq.telefono.replace(/[^\d]/g, '');
-                      return (
-                        <div key={inq.id} className="py-4 first:pt-1">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div className="text-xs text-zinc-500">
-                              <span className="font-semibold text-zinc-900">
-                                {inq.nombreRemitente}
-                              </span>
-                              <span> · {inq.rolRemitente}</span>
-                              {inq.parroquiaInteres && <span> · {inq.parroquiaInteres}</span>}
-                            </div>
-
-                            <div className="flex items-center gap-3 text-xs">
-                              <span
-                                className={
-                                  inq.estado === 'pendiente'
-                                    ? 'font-semibold text-[#DC1F26]'
-                                    : 'text-emerald-700 font-medium'
-                                }
-                              >
-                                {inq.estado === 'pendiente' ? 'Pendiente' : 'Atendida'}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  const next =
-                                    inq.estado === 'pendiente' ? 'atendida' : 'pendiente';
-                                  const out = await updateInquiryStatus(inq.id, next);
-                                  setStore(out.store);
-                                }}
-                                className="rounded-lg border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 whitespace-nowrap shrink-0"
-                              >
-                                {inq.estado === 'pendiente'
-                                  ? 'Marcar atendida'
-                                  : 'Reabrir pendiente'}
-                              </button>
-                            </div>
-                          </div>
-
-                          <p className="mt-2 text-sm leading-relaxed text-zinc-800">{inq.mensaje}</p>
-
-                          <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-zinc-500 tabular-nums">
-                            <a
-                              href={`tel:${inq.telefono}`}
-                              className="font-mono hover:text-[#DC1F26]"
-                            >
-                              Tel: {inq.telefono}
-                            </a>
-                            {cleanDigits && (
-                              <a
-                                href={`https://wa.me/${cleanDigits}?text=${encodeURIComponent(
-                                  `Hola ${inq.nombreRemitente}, le escribimos desde el Secretariado de Pastoral Familiar de la Arquidiócesis de Maracaibo respecto a su consulta sobre los EPIM.`
-                                )}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="font-medium text-zinc-700 underline hover:text-zinc-900"
-                              >
-                                Responder por WhatsApp
-                              </a>
-                            )}
-                            {inq.correo && (
-                              <a
-                                href={`mailto:${inq.correo}`}
-                                className="underline hover:text-zinc-900"
-                              >
-                                {inq.correo}
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+              <AdminInquiriesSection
+                store={store}
+                currentUserEmail={user?.email}
+                onStoreChange={(nextStore) => setStore(nextStore)}
+                onNotify={notify}
+                onRequestConfirm={(confirmCfg) => setPendingConfirm(confirmCfg)}
+              />
             )}
 
             {/* 6. GOOGLE SHEETS EN TIEMPO REAL & CONFIGURACIÓN */}

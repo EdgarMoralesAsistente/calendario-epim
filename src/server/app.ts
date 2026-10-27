@@ -3,11 +3,14 @@ import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
 import {
+  buildDefaultInquirySubject,
   createInitialStore,
   formatEncounterDatesEs,
+  getInquiryStageLabel,
   normalizeArciprestazgoName,
   normalizeEpimStoreNames,
   normalizeIndividualDates,
+  normalizeInquiryRecord,
   normalizeParroquiaName,
 } from '../data/maracaiboCatalog.js';
 import type {
@@ -15,6 +18,10 @@ import type {
   EpimEncounter,
   EpimStore,
   Inquiry,
+  InquiryChecklistItem,
+  InquiryHistoryEntry,
+  InquiryHistoryType,
+  InquiryStage,
   PublicBoardResponse,
   Reservation,
 } from '../types/epim.js';
@@ -444,22 +451,47 @@ export function createApiApp() {
       return;
     }
 
-    const inquiry: Inquiry = {
+    const nowIso = new Date().toISOString();
+    const rol = rolRemitente || 'Pareja de novios';
+    const normArc = arciprestazgoInteres?.trim()
+      ? normalizeArciprestazgoName(arciprestazgoInteres).slice(0, 140)
+      : '';
+    const normPar = parroquiaInteres?.trim()
+      ? normalizeParroquiaName(parroquiaInteres).slice(0, 140)
+      : '';
+
+    const inquiry = normalizeInquiryRecord({
       id: `inq-${Date.now()}`,
+      asunto: buildDefaultInquirySubject({
+        nombreRemitente: nombreRemitente.trim(),
+        rolRemitente: rol,
+        parroquiaInteres: normPar,
+      }),
       nombreRemitente: nombreRemitente.trim().slice(0, 120),
-      rolRemitente: rolRemitente || 'Pareja de novios',
+      rolRemitente: rol,
       telefono: telefono.trim().slice(0, 50),
       correo: (correo || '').trim().slice(0, 120),
-      arciprestazgoInteres: arciprestazgoInteres?.trim()
-        ? normalizeArciprestazgoName(arciprestazgoInteres).slice(0, 140)
-        : '',
-      parroquiaInteres: parroquiaInteres?.trim()
-        ? normalizeParroquiaName(parroquiaInteres).slice(0, 140)
-        : '',
-      mensaje: mensaje.trim().slice(0, 1000),
+      arciprestazgoInteres: normArc,
+      parroquiaInteres: normPar,
+      mensaje: mensaje.trim().slice(0, 1500),
       estado: 'pendiente',
-      createdAt: new Date().toISOString(),
-    };
+      etapa: 'nuevas',
+      prioridad: rol === 'Sacerdote / Diácono' ? 'alta' : 'media',
+      canalOrigen: 'Formulario Web',
+      notasInternas: '',
+      checklist: [],
+      historial: [
+        {
+          id: `hist-${Date.now()}`,
+          tipo: 'creacion',
+          autor: `${nombreRemitente.trim().slice(0, 80)} (${rol})`,
+          texto: 'Consulta enviada desde el formulario público web.',
+          createdAt: nowIso,
+        },
+      ],
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    });
 
     store.inquiries.unshift(inquiry);
     hasLocalUnsyncedPublicMutations = true;
@@ -860,18 +892,392 @@ export function createApiApp() {
     }
   );
 
-  app.patch(
-    '/api/admin/inquiries/:id/status',
+  app.post(
+    '/api/admin/inquiries',
     verifyGoogleAdmin,
     async (req: AuthenticatedRequest, res: Response) => {
-      const { estado } = req.body as { estado: 'pendiente' | 'atendida' };
-      const inquiry = store.inquiries.find((i) => i.id === req.params.id);
-      if (!inquiry) {
+      const body = req.body as Partial<Inquiry>;
+      if (!body.nombreRemitente?.trim() || !body.mensaje?.trim()) {
+        res.status(400).json({
+          error: 'El nombre del remitente y la descripción de la consulta son obligatorios.',
+        });
+        return;
+      }
+
+      const nowIso = new Date().toISOString();
+      const authorLabel =
+        req.adminUser?.name || req.adminUser?.email || 'Coordinación Pastoral';
+      const etapa: InquiryStage = body.etapa || 'nuevas';
+      const estado: Inquiry['estado'] = etapa === 'atendidas' ? 'atendida' : 'pendiente';
+      const canal = body.canalOrigen || 'WhatsApp';
+
+      const created = normalizeInquiryRecord({
+        id: `inq-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
+        asunto: body.asunto?.trim() || undefined,
+        nombreRemitente: body.nombreRemitente.trim().slice(0, 120),
+        rolRemitente: body.rolRemitente || 'Pareja de novios',
+        telefono: (body.telefono || '').trim().slice(0, 50),
+        correo: (body.correo || '').trim().slice(0, 120),
+        arciprestazgoInteres: body.arciprestazgoInteres?.trim()
+          ? normalizeArciprestazgoName(body.arciprestazgoInteres)
+          : '',
+        parroquiaInteres: body.parroquiaInteres?.trim()
+          ? normalizeParroquiaName(body.parroquiaInteres)
+          : '',
+        mensaje: body.mensaje.trim().slice(0, 2000),
+        estado,
+        etapa,
+        prioridad: body.prioridad || 'media',
+        responsable: (body.responsable || '').trim().slice(0, 120),
+        fechaSeguimiento: (body.fechaSeguimiento || '').trim().slice(0, 20),
+        canalOrigen: canal,
+        notasInternas: (body.notasInternas || '').trim().slice(0, 2500),
+        checklist: Array.isArray(body.checklist) ? body.checklist : [],
+        historial: [
+          {
+            id: `hist-${Date.now()}`,
+            tipo: 'creacion',
+            autor: authorLabel,
+            texto: `Ficha creada manualmente (${canal}) en la columna «${getInquiryStageLabel(
+              etapa
+            )}».`,
+            createdAt: nowIso,
+          },
+        ],
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      });
+
+      store.inquiries.unshift(created);
+      saveStore(store);
+      await trySyncWithSheetsIfPossible(req.adminUser?.accessToken);
+      res.status(201).json({ inquiry: created, store });
+    }
+  );
+
+  app.put(
+    '/api/admin/inquiries/:id',
+    verifyGoogleAdmin,
+    async (req: AuthenticatedRequest, res: Response) => {
+      const idx = store.inquiries.findIndex((i) => i.id === req.params.id);
+      if (idx === -1) {
         res.status(404).json({ error: 'Consulta no encontrada.' });
         return;
       }
 
-      inquiry.estado = estado;
+      const existing = normalizeInquiryRecord(store.inquiries[idx]);
+      const body = req.body as Partial<Inquiry> & {
+        logEntry?: { tipo?: InquiryHistoryType; texto?: string };
+        suppressAutoLog?: boolean;
+      };
+
+      const nowIso = new Date().toISOString();
+      const authorLabel =
+        req.adminUser?.name || req.adminUser?.email || 'Coordinación Pastoral';
+
+      let nextEtapa: InquiryStage = existing.etapa || 'nuevas';
+      if (body.etapa) {
+        nextEtapa = body.etapa;
+      } else if (body.estado && body.estado !== existing.estado) {
+        nextEtapa = body.estado === 'atendida' ? 'atendidas' : 'nuevas';
+      }
+      const nextEstado: Inquiry['estado'] =
+        nextEtapa === 'atendidas' ? 'atendida' : 'pendiente';
+
+      const nextChecklist: InquiryChecklistItem[] = Array.isArray(body.checklist)
+        ? body.checklist
+            .filter((c) => c && typeof c.texto === 'string' && c.texto.trim())
+            .map((c, cIdx) => ({
+              id: c.id || `${existing.id}-chk-${Date.now()}-${cIdx}`,
+              texto: c.texto.trim().slice(0, 260),
+              completado: Boolean(c.completado),
+            }))
+        : existing.checklist || [];
+
+      const nextHistory: InquiryHistoryEntry[] = [...(existing.historial || [])];
+
+      if (body.logEntry?.texto?.trim()) {
+        nextHistory.push({
+          id: `hist-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
+          tipo: body.logEntry.tipo || 'edicion',
+          autor: authorLabel,
+          texto: body.logEntry.texto.trim().slice(0, 1000),
+          createdAt: nowIso,
+        });
+      } else if (!body.suppressAutoLog) {
+        const changes: Array<{ tipo: InquiryHistoryType; texto: string }> = [];
+
+        if (nextEtapa !== existing.etapa) {
+          changes.push({
+            tipo: 'cambio_etapa',
+            texto: `Movió la ficha de «${getInquiryStageLabel(
+              existing.etapa
+            )}» a «${getInquiryStageLabel(nextEtapa)}».`,
+          });
+        }
+        if (body.prioridad && body.prioridad !== existing.prioridad) {
+          const prioLabels = { alta: 'Alta', media: 'Media', baja: 'Baja' } as const;
+          changes.push({
+            tipo: 'edicion',
+            texto: `Cambió la prioridad a ${prioLabels[body.prioridad]}.`,
+          });
+        }
+        if (
+          body.responsable !== undefined &&
+          body.responsable.trim() !== (existing.responsable || '')
+        ) {
+          changes.push({
+            tipo: 'edicion',
+            texto: body.responsable.trim()
+              ? `Asignó como responsable a ${body.responsable.trim()}.`
+              : 'Quitó el responsable asignado.',
+          });
+        }
+        if (
+          body.fechaSeguimiento !== undefined &&
+          body.fechaSeguimiento.trim() !== (existing.fechaSeguimiento || '')
+        ) {
+          changes.push({
+            tipo: 'edicion',
+            texto: body.fechaSeguimiento.trim()
+              ? `Programó fecha de seguimiento para el ${body.fechaSeguimiento.trim()}.`
+              : 'Quitó la fecha de próximo seguimiento.',
+          });
+        }
+
+        const coreEdited =
+          (body.asunto !== undefined && body.asunto.trim() !== (existing.asunto || '')) ||
+          (body.nombreRemitente !== undefined &&
+            body.nombreRemitente.trim() !== existing.nombreRemitente) ||
+          (body.rolRemitente !== undefined &&
+            body.rolRemitente !== existing.rolRemitente) ||
+          (body.telefono !== undefined && body.telefono.trim() !== existing.telefono) ||
+          (body.correo !== undefined && body.correo.trim() !== existing.correo) ||
+          (body.mensaje !== undefined && body.mensaje.trim() !== existing.mensaje) ||
+          (body.notasInternas !== undefined &&
+            body.notasInternas.trim() !== (existing.notasInternas || '')) ||
+          (body.arciprestazgoInteres !== undefined &&
+            normalizeArciprestazgoName(body.arciprestazgoInteres) !==
+              existing.arciprestazgoInteres) ||
+          (body.parroquiaInteres !== undefined &&
+            normalizeParroquiaName(body.parroquiaInteres) !== existing.parroquiaInteres);
+
+        if (coreEdited && changes.length === 0) {
+          changes.push({
+            tipo: 'edicion',
+            texto: 'Editó la información y notas internas de la ficha.',
+          });
+        }
+
+        changes.forEach((ch, cIdx) => {
+          nextHistory.push({
+            id: `hist-${Date.now()}-${cIdx}`,
+            tipo: ch.tipo,
+            autor: authorLabel,
+            texto: ch.texto,
+            createdAt: nowIso,
+          });
+        });
+      }
+
+      const updated = normalizeInquiryRecord({
+        ...existing,
+        asunto:
+          body.asunto !== undefined ? body.asunto.trim().slice(0, 180) : existing.asunto,
+        nombreRemitente:
+          body.nombreRemitente !== undefined && body.nombreRemitente.trim()
+            ? body.nombreRemitente.trim().slice(0, 120)
+            : existing.nombreRemitente,
+        rolRemitente: body.rolRemitente ?? existing.rolRemitente,
+        telefono:
+          body.telefono !== undefined
+            ? body.telefono.trim().slice(0, 50)
+            : existing.telefono,
+        correo:
+          body.correo !== undefined ? body.correo.trim().slice(0, 120) : existing.correo,
+        arciprestazgoInteres:
+          body.arciprestazgoInteres !== undefined
+            ? body.arciprestazgoInteres.trim()
+              ? normalizeArciprestazgoName(body.arciprestazgoInteres)
+              : ''
+            : existing.arciprestazgoInteres,
+        parroquiaInteres:
+          body.parroquiaInteres !== undefined
+            ? body.parroquiaInteres.trim()
+              ? normalizeParroquiaName(body.parroquiaInteres)
+              : ''
+            : existing.parroquiaInteres,
+        mensaje:
+          body.mensaje !== undefined && body.mensaje.trim()
+            ? body.mensaje.trim().slice(0, 2000)
+            : existing.mensaje,
+        estado: nextEstado,
+        etapa: nextEtapa,
+        prioridad: body.prioridad ?? existing.prioridad,
+        responsable:
+          body.responsable !== undefined
+            ? body.responsable.trim().slice(0, 120)
+            : existing.responsable,
+        fechaSeguimiento:
+          body.fechaSeguimiento !== undefined
+            ? body.fechaSeguimiento.trim().slice(0, 20)
+            : existing.fechaSeguimiento,
+        canalOrigen: body.canalOrigen ?? existing.canalOrigen,
+        notasInternas:
+          body.notasInternas !== undefined
+            ? body.notasInternas.trim().slice(0, 2500)
+            : existing.notasInternas,
+        checklist: nextChecklist,
+        historial: nextHistory,
+        updatedAt: nowIso,
+      });
+
+      store.inquiries[idx] = updated;
+      saveStore(store);
+      await trySyncWithSheetsIfPossible(req.adminUser?.accessToken);
+      res.json({ inquiry: updated, store });
+    }
+  );
+
+  app.post(
+    '/api/admin/inquiries/:id/activity',
+    verifyGoogleAdmin,
+    async (req: AuthenticatedRequest, res: Response) => {
+      const idx = store.inquiries.findIndex((i) => i.id === req.params.id);
+      if (idx === -1) {
+        res.status(404).json({ error: 'Consulta no encontrada.' });
+        return;
+      }
+
+      const { texto, tipo } = req.body as {
+        texto?: string;
+        tipo?: InquiryHistoryType;
+      };
+      if (!texto?.trim()) {
+        res.status(400).json({ error: 'Escribe el contenido de la nota o gestión.' });
+        return;
+      }
+
+      const existing = normalizeInquiryRecord(store.inquiries[idx]);
+      const nowIso = new Date().toISOString();
+      const authorLabel =
+        req.adminUser?.name || req.adminUser?.email || 'Coordinación Pastoral';
+
+      const entry: InquiryHistoryEntry = {
+        id: `hist-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
+        tipo: tipo === 'contacto' ? 'contacto' : 'nota',
+        autor: authorLabel,
+        texto: texto.trim().slice(0, 1200),
+        createdAt: nowIso,
+      };
+
+      const updated = normalizeInquiryRecord({
+        ...existing,
+        historial: [...(existing.historial || []), entry],
+        updatedAt: nowIso,
+      });
+
+      store.inquiries[idx] = updated;
+      saveStore(store);
+      await trySyncWithSheetsIfPossible(req.adminUser?.accessToken);
+      res.status(201).json({ inquiry: updated, store });
+    }
+  );
+
+  app.delete(
+    '/api/admin/inquiries/:id/activity/:entryId',
+    verifyGoogleAdmin,
+    async (req: AuthenticatedRequest, res: Response) => {
+      const idx = store.inquiries.findIndex((i) => i.id === req.params.id);
+      if (idx === -1) {
+        res.status(404).json({ error: 'Consulta no encontrada.' });
+        return;
+      }
+
+      const existing = normalizeInquiryRecord(store.inquiries[idx]);
+      const filteredHistory = (existing.historial || []).filter(
+        (h) =>
+          !(
+            h.id === req.params.entryId &&
+            (h.tipo === 'nota' || h.tipo === 'contacto')
+          )
+      );
+
+      const updated = normalizeInquiryRecord({
+        ...existing,
+        historial: filteredHistory,
+        updatedAt: new Date().toISOString(),
+      });
+
+      store.inquiries[idx] = updated;
+      saveStore(store);
+      await trySyncWithSheetsIfPossible(req.adminUser?.accessToken);
+      res.json({ inquiry: updated, store });
+    }
+  );
+
+  app.patch(
+    '/api/admin/inquiries/:id/status',
+    verifyGoogleAdmin,
+    async (req: AuthenticatedRequest, res: Response) => {
+      const { estado, etapa } = req.body as {
+        estado?: 'pendiente' | 'atendida';
+        etapa?: InquiryStage;
+      };
+      const idx = store.inquiries.findIndex((i) => i.id === req.params.id);
+      if (idx === -1) {
+        res.status(404).json({ error: 'Consulta no encontrada.' });
+        return;
+      }
+
+      const existing = normalizeInquiryRecord(store.inquiries[idx]);
+      const nextEtapa: InquiryStage =
+        etapa || (estado === 'atendida' ? 'atendidas' : 'nuevas');
+      const nextEstado: Inquiry['estado'] =
+        nextEtapa === 'atendidas' ? 'atendida' : 'pendiente';
+      const nowIso = new Date().toISOString();
+      const authorLabel =
+        req.adminUser?.name || req.adminUser?.email || 'Coordinación Pastoral';
+
+      const nextHistory = [...(existing.historial || [])];
+      if (nextEtapa !== existing.etapa) {
+        nextHistory.push({
+          id: `hist-${Date.now()}`,
+          tipo: 'cambio_etapa',
+          autor: authorLabel,
+          texto: `Movió la ficha de «${getInquiryStageLabel(
+            existing.etapa
+          )}» a «${getInquiryStageLabel(nextEtapa)}».`,
+          createdAt: nowIso,
+        });
+      }
+
+      const updated = normalizeInquiryRecord({
+        ...existing,
+        etapa: nextEtapa,
+        estado: nextEstado,
+        historial: nextHistory,
+        updatedAt: nowIso,
+      });
+
+      store.inquiries[idx] = updated;
+      saveStore(store);
+      await trySyncWithSheetsIfPossible(req.adminUser?.accessToken);
+      res.json({ inquiry: updated, store });
+    }
+  );
+
+  app.delete(
+    '/api/admin/inquiries/:id',
+    verifyGoogleAdmin,
+    async (req: AuthenticatedRequest, res: Response) => {
+      const idx = store.inquiries.findIndex((i) => i.id === req.params.id);
+      if (idx === -1) {
+        res.status(404).json({ error: 'Consulta no encontrada.' });
+        return;
+      }
+
+      store.inquiries.splice(idx, 1);
       saveStore(store);
       await trySyncWithSheetsIfPossible(req.adminUser?.accessToken);
       res.json({ store });

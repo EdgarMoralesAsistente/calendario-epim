@@ -3,6 +3,8 @@ import type {
   EpimEncounter,
   EpimStore,
   Inquiry,
+  InquiryHistoryType,
+  InquiryStage,
   PublicBoardResponse,
   Reservation,
 } from '../types/epim.ts';
@@ -170,15 +172,89 @@ export async function updateReservationStatus(
   return parseJsonOrError<{ store: EpimStore }>(res);
 }
 
+export async function createAdminInquiry(
+  payload: Partial<Inquiry>
+): Promise<{ inquiry: Inquiry; store: EpimStore }> {
+  const headers = await adminHeaders();
+  const res = await fetch('/api/admin/inquiries', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  });
+  return parseJsonOrError<{ inquiry: Inquiry; store: EpimStore }>(res);
+}
+
+export async function updateAdminInquiry(
+  id: string,
+  payload: Partial<Inquiry> & {
+    logEntry?: { tipo?: InquiryHistoryType; texto?: string };
+    suppressAutoLog?: boolean;
+  }
+): Promise<{ inquiry: Inquiry; store: EpimStore }> {
+  const headers = await adminHeaders();
+  const res = await fetch(`/api/admin/inquiries/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify(payload),
+  });
+  return parseJsonOrError<{ inquiry: Inquiry; store: EpimStore }>(res);
+}
+
+export async function addInquiryActivity(
+  id: string,
+  payload: { texto: string; tipo?: 'nota' | 'contacto' }
+): Promise<{ inquiry: Inquiry; store: EpimStore }> {
+  const headers = await adminHeaders();
+  const res = await fetch(`/api/admin/inquiries/${encodeURIComponent(id)}/activity`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  });
+  return parseJsonOrError<{ inquiry: Inquiry; store: EpimStore }>(res);
+}
+
+export async function deleteInquiryActivity(
+  id: string,
+  entryId: string
+): Promise<{ inquiry: Inquiry; store: EpimStore }> {
+  const headers = await adminHeaders();
+  const res = await fetch(
+    `/api/admin/inquiries/${encodeURIComponent(id)}/activity/${encodeURIComponent(
+      entryId
+    )}`,
+    {
+      method: 'DELETE',
+      headers,
+    }
+  );
+  return parseJsonOrError<{ inquiry: Inquiry; store: EpimStore }>(res);
+}
+
 export async function updateInquiryStatus(
   id: string,
-  estado: 'pendiente' | 'atendida'
-): Promise<{ store: EpimStore }> {
+  estadoOrEtapa:
+    | 'pendiente'
+    | 'atendida'
+    | { estado?: 'pendiente' | 'atendida'; etapa?: InquiryStage }
+): Promise<{ inquiry?: Inquiry; store: EpimStore }> {
   const headers = await adminHeaders();
+  const body =
+    typeof estadoOrEtapa === 'string' ? { estado: estadoOrEtapa } : estadoOrEtapa;
   const res = await fetch(`/api/admin/inquiries/${encodeURIComponent(id)}/status`, {
     method: 'PATCH',
     headers,
-    body: JSON.stringify({ estado }),
+    body: JSON.stringify(body),
+  });
+  return parseJsonOrError<{ inquiry?: Inquiry; store: EpimStore }>(res);
+}
+
+export async function deleteAdminInquiry(
+  id: string
+): Promise<{ store: EpimStore }> {
+  const headers = await adminHeaders();
+  const res = await fetch(`/api/admin/inquiries/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers,
   });
   return parseJsonOrError<{ store: EpimStore }>(res);
 }
