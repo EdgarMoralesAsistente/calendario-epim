@@ -211,25 +211,43 @@ export async function fetchStoreFromPublicSheet(
 
   const reservations: Reservation[] = (rawReservations || [])
     .filter((row) => row.length >= 8 && row[2]?.trim())
-    .map((row, idx) => ({
-      id: row[0]?.trim() || `res-sheet-${idx + 1}`,
-      codigoReserva: row[1]?.trim() || `EPIM-${idx + 1000}`,
-      encounterId: row[2]?.trim() || '',
-      year: Number(row[3]) || resolvedPublicYear,
-      parroquiaEpim: normalizeParroquiaName(row[4]),
-      arciprestazgo: normalizeArciprestazgoName(row[5]),
-      fechasEpim: row[6]?.trim() || '',
-      nombreNovia: row[7]?.trim() || '',
-      nombreNovio: row[8]?.trim() || '',
-      documentoIdentidad: row[9]?.trim() || '',
-      telefonoPareja: row[10]?.trim() || '',
-      correoPareja: row[11]?.trim() || '',
-      parroquiaMatrimonio: row[12]?.trim() ? normalizeParroquiaName(row[12]) : '',
-      fechaPrevistaBoda: row[13]?.trim() || '',
-      observaciones: row[14]?.trim() || '',
-      estado: row[15]?.trim() === 'cancelada' ? 'cancelada' : 'confirmada',
-      createdAt: row[16]?.trim() || new Date().toISOString(),
-    }));
+    .map((row, idx) => {
+      const cedulaNovia = cleanCellValue(row[17]);
+      const cedulaNovio = cleanCellValue(row[18]);
+      const telefonoNovia = cleanCellValue(row[19]);
+      const telefonoNovio = cleanCellValue(row[20]);
+      const rawParMat = (row[12] || '').trim();
+      return {
+        id: row[0]?.trim() || `res-sheet-${idx + 1}`,
+        codigoReserva: row[1]?.trim() || `EPIM-${idx + 1000}`,
+        encounterId: row[2]?.trim() || '',
+        year: Number(row[3]) || resolvedPublicYear,
+        parroquiaEpim: normalizeParroquiaName(row[4]),
+        arciprestazgo: normalizeArciprestazgoName(row[5]),
+        fechasEpim: row[6]?.trim() || '',
+        nombreNovia: row[7]?.trim() || '',
+        nombreNovio: row[8]?.trim() || '',
+        cedulaNovia: cedulaNovia || undefined,
+        cedulaNovio: cedulaNovio || undefined,
+        documentoIdentidad:
+          row[9]?.trim() || [cedulaNovia, cedulaNovio].filter(Boolean).join(' / '),
+        telefonoNovia: telefonoNovia || undefined,
+        telefonoNovio: telefonoNovio || undefined,
+        telefonoPareja:
+          cleanCellValue(row[10]) ||
+          [telefonoNovia, telefonoNovio].filter(Boolean).join(' / '),
+        correoPareja: row[11]?.trim() || '',
+        parroquiaMatrimonio: rawParMat
+          ? rawParMat.toLowerCase().startsWith('otra parroquia')
+            ? rawParMat
+            : normalizeParroquiaName(rawParMat)
+          : '',
+        fechaPrevistaBoda: row[13]?.trim() || '',
+        observaciones: row[14]?.trim() || '',
+        estado: row[15]?.trim() === 'cancelada' ? 'cancelada' : 'confirmada',
+        createdAt: row[16]?.trim() || new Date().toISOString(),
+      };
+    });
 
   const inquiries: Inquiry[] = (rawInquiries || [])
     .filter((row) => row.length >= 2 && row[1]?.trim())

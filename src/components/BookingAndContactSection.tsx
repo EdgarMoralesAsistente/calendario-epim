@@ -14,6 +14,7 @@ import { submitPublicInquiry, submitPublicReservation } from '../services/api.ts
 interface BookingAndContactSectionProps {
   publicYear: number;
   encounters: EpimEncounter[];
+  customParishes?: { arciprestazgo: string; parroquia: string }[];
   preselectedEncounterId: string;
   activeTab: 'reserva' | 'consulta';
   onTabChange: (tab: 'reserva' | 'consulta') => void;
@@ -28,6 +29,7 @@ interface BookingAndContactSectionProps {
 export const BookingAndContactSection: React.FC<BookingAndContactSectionProps> = ({
   publicYear,
   encounters,
+  customParishes = [],
   preselectedEncounterId,
   activeTab,
   onTabChange,
@@ -42,12 +44,42 @@ export const BookingAndContactSection: React.FC<BookingAndContactSectionProps> =
     [encounters]
   );
 
+  // Build grouped list of all parishes in the Archdiocese (official catalog + custom/scheduled)
+  const parishGroups = useMemo(() => {
+    const groupMap = new Map<string, Set<string>>();
+    MARACAIBO_ARCIPRESTAZGOS.forEach((g) => {
+      groupMap.set(g.nombre, new Set(g.parroquias.map((p) => normalizeParroquiaName(p))));
+    });
+    customParishes.forEach((cp) => {
+      const arc = normalizeArciprestazgoName(cp.arciprestazgo) || MARACAIBO_ARCIPRESTAZGOS[0].nombre;
+      const par = normalizeParroquiaName(cp.parroquia);
+      if (par) {
+        if (!groupMap.has(arc)) groupMap.set(arc, new Set());
+        groupMap.get(arc)!.add(par);
+      }
+    });
+    encounters.forEach((enc) => {
+      const arc = normalizeArciprestazgoName(enc.arciprestazgo) || MARACAIBO_ARCIPRESTAZGOS[0].nombre;
+      const par = normalizeParroquiaName(enc.parroquia);
+      if (par) {
+        if (!groupMap.has(arc)) groupMap.set(arc, new Set());
+        groupMap.get(arc)!.add(par);
+      }
+    });
+    return Array.from(groupMap.entries()).map(([arciprestazgo, parroquiasSet]) => ({
+      arciprestazgo,
+      parroquias: Array.from(parroquiasSet).sort((a, b) => a.localeCompare(b, 'es')),
+    }));
+  }, [customParishes, encounters]);
+
   // Reservation Form State
   const [encounterId, setEncounterId] = useState<string>('');
   const [nombreNovia, setNombreNovia] = useState('');
   const [nombreNovio, setNombreNovio] = useState('');
-  const [documentoIdentidad, setDocumentoIdentidad] = useState('');
-  const [telefonoPareja, setTelefonoPareja] = useState('');
+  const [cedulaNovia, setCedulaNovia] = useState('');
+  const [cedulaNovio, setCedulaNovio] = useState('');
+  const [telefonoNovia, setTelefonoNovia] = useState('');
+  const [telefonoNovio, setTelefonoNovio] = useState('');
   const [correoPareja, setCorreoPareja] = useState('');
   const [parroquiaMatrimonio, setParroquiaMatrimonio] = useState('');
   const [fechaPrevistaBoda, setFechaPrevistaBoda] = useState('');
@@ -98,8 +130,12 @@ export const BookingAndContactSection: React.FC<BookingAndContactSectionProps> =
         encounterId,
         nombreNovia,
         nombreNovio,
-        documentoIdentidad,
-        telefonoPareja,
+        cedulaNovia,
+        cedulaNovio,
+        documentoIdentidad: [cedulaNovia.trim(), cedulaNovio.trim()].filter(Boolean).join(' / '),
+        telefonoNovia,
+        telefonoNovio,
+        telefonoPareja: [telefonoNovia.trim(), telefonoNovio.trim()].filter(Boolean).join(' / '),
         correoPareja,
         parroquiaMatrimonio,
         fechaPrevistaBoda,
@@ -109,8 +145,10 @@ export const BookingAndContactSection: React.FC<BookingAndContactSectionProps> =
       onReservationCreated(encounter);
       setNombreNovia('');
       setNombreNovio('');
-      setDocumentoIdentidad('');
-      setTelefonoPareja('');
+      setCedulaNovia('');
+      setCedulaNovio('');
+      setTelefonoNovia('');
+      setTelefonoNovio('');
       setCorreoPareja('');
       setParroquiaMatrimonio('');
       setFechaPrevistaBoda('');
@@ -297,6 +335,17 @@ export const BookingAndContactSection: React.FC<BookingAndContactSectionProps> =
                         <dd className="mt-0.5 font-semibold text-zinc-900">
                           {confirmedReservation.nombreNovia} y {confirmedReservation.nombreNovio}
                         </dd>
+                        {(confirmedReservation.cedulaNovia ||
+                          confirmedReservation.cedulaNovio ||
+                          confirmedReservation.documentoIdentidad) && (
+                          <dd className="mt-0.5 font-mono text-zinc-600 tabular-nums">
+                            {confirmedReservation.cedulaNovia || confirmedReservation.cedulaNovio
+                              ? `C.I. Novia: ${confirmedReservation.cedulaNovia || '—'} · Novio: ${
+                                  confirmedReservation.cedulaNovio || '—'
+                                }`
+                              : confirmedReservation.documentoIdentidad}
+                          </dd>
+                        )}
                       </div>
                       <div>
                         <dt className="text-zinc-500">Parroquia Sede EPIM</dt>
@@ -316,11 +365,25 @@ export const BookingAndContactSection: React.FC<BookingAndContactSectionProps> =
                         </dd>
                       </div>
                       <div>
-                        <dt className="text-zinc-500">Teléfono Registrado</dt>
+                        <dt className="text-zinc-500">Teléfonos Registrados</dt>
                         <dd className="mt-0.5 font-mono text-zinc-800 tabular-nums">
-                          {confirmedReservation.telefonoPareja}
+                          {confirmedReservation.telefonoNovia || confirmedReservation.telefonoNovio
+                            ? `Novia: ${confirmedReservation.telefonoNovia || '—'} · Novio: ${
+                                confirmedReservation.telefonoNovio || '—'
+                              }`
+                            : confirmedReservation.telefonoPareja}
                         </dd>
                       </div>
+                      {confirmedReservation.parroquiaMatrimonio && (
+                        <div className="sm:col-span-2">
+                          <dt className="text-zinc-500">
+                            Parroquia de Matrimonio / Expediente
+                          </dt>
+                          <dd className="mt-0.5 font-medium text-zinc-800">
+                            {confirmedReservation.parroquiaMatrimonio}
+                          </dd>
+                        </div>
+                      )}
                     </dl>
                   </div>
 
@@ -457,35 +520,73 @@ export const BookingAndContactSection: React.FC<BookingAndContactSectionProps> =
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
                       <label
-                        htmlFor="res-doc"
+                        htmlFor="res-cedula-novia"
                         className="block text-xs font-semibold text-zinc-800"
                       >
-                        Cédulas de identidad (Novia / Novio)
+                        Cédula de identidad de la novia *
                       </label>
                       <input
-                        id="res-doc"
+                        id="res-cedula-novia"
                         type="text"
-                        value={documentoIdentidad}
-                        onChange={(e) => setDocumentoIdentidad(e.target.value)}
-                        placeholder="V-00.000.000 / V-00.000.000"
-                        className="mt-1.5 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-[#DC1F26] focus:outline-none"
+                        required
+                        value={cedulaNovia}
+                        onChange={(e) => setCedulaNovia(e.target.value)}
+                        placeholder="Ej. V-24.123.456"
+                        className="mt-1.5 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 tabular-nums focus:border-[#DC1F26] focus:outline-none"
                       />
                     </div>
                     <div>
                       <label
-                        htmlFor="res-tel"
+                        htmlFor="res-cedula-novio"
                         className="block text-xs font-semibold text-zinc-800"
                       >
-                        Teléfono / WhatsApp de contacto *
+                        Cédula de identidad del novio *
                       </label>
                       <input
-                        id="res-tel"
+                        id="res-cedula-novio"
+                        type="text"
+                        required
+                        value={cedulaNovio}
+                        onChange={(e) => setCedulaNovio(e.target.value)}
+                        placeholder="Ej. V-23.987.654"
+                        className="mt-1.5 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 tabular-nums focus:border-[#DC1F26] focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <label
+                        htmlFor="res-tel-novia"
+                        className="block text-xs font-semibold text-zinc-800"
+                      >
+                        Teléfono / WhatsApp de la novia *
+                      </label>
+                      <input
+                        id="res-tel-novia"
                         type="tel"
                         required
-                        value={telefonoPareja}
-                        onChange={(e) => setTelefonoPareja(e.target.value)}
+                        value={telefonoNovia}
+                        onChange={(e) => setTelefonoNovia(e.target.value)}
                         placeholder="+58 414-0000000"
-                        className="mt-1.5 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-[#DC1F26] focus:outline-none"
+                        className="mt-1.5 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 tabular-nums focus:border-[#DC1F26] focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label
+                        htmlFor="res-tel-novio"
+                        className="block text-xs font-semibold text-zinc-800"
+                      >
+                        Teléfono / WhatsApp del novio *
+                      </label>
+                      <input
+                        id="res-tel-novio"
+                        type="tel"
+                        required
+                        value={telefonoNovio}
+                        onChange={(e) => setTelefonoNovio(e.target.value)}
+                        placeholder="+58 412-0000000"
+                        className="mt-1.5 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 tabular-nums focus:border-[#DC1F26] focus:outline-none"
                       />
                     </div>
                   </div>
@@ -531,14 +632,28 @@ export const BookingAndContactSection: React.FC<BookingAndContactSectionProps> =
                     >
                       Parroquia donde celebrarán el matrimonio o arman expediente
                     </label>
-                    <input
+                    <select
                       id="res-parroquia-boda"
-                      type="text"
                       value={parroquiaMatrimonio}
                       onChange={(e) => setParroquiaMatrimonio(e.target.value)}
-                      placeholder="Ej. Parroquia Santa Lucía"
-                      className="mt-1.5 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-[#DC1F26] focus:outline-none"
-                    />
+                      className="mt-1.5 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 focus:border-[#DC1F26] focus:outline-none"
+                    >
+                      <option value="">Seleccionar parroquia...</option>
+                      {parishGroups.map((group) => (
+                        <optgroup key={group.arciprestazgo} label={group.arciprestazgo}>
+                          {group.parroquias.map((parroquia) => (
+                            <option key={parroquia} value={parroquia}>
+                              {parroquia}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                      <optgroup label="Otras circunscripciones">
+                        <option value="Otra parroquia (fuera de la Arquidiócesis de Maracaibo)">
+                          Otra parroquia (fuera de la Arquidiócesis de Maracaibo)
+                        </option>
+                      </optgroup>
+                    </select>
                   </div>
 
                   <div>

@@ -1,9 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
-  Download,
   LayoutGrid,
   Phone,
-  Printer,
   RotateCcw,
   Search,
   Table as TableIcon,
@@ -142,52 +140,6 @@ export const CarteleraSection: React.FC<CarteleraSectionProps> = ({
     setSearchQuery('');
   };
 
-  const handleExportCsv = () => {
-    const headers = [
-      'Año',
-      'Mes',
-      'Fechas',
-      'Arciprestazgo',
-      'Parroquia',
-      'Horario',
-      'Lugar / Salón',
-      'Teléfono de Contacto',
-      'Coordinadores',
-      'Cupos Disponibles',
-      'Cupos Totales',
-      'Estado',
-    ];
-    const rows = filteredEncounters.map((e) => [
-      String(e.year),
-      formatMonthName(e.mes),
-      formatEncounterDatesEs(e),
-      normalizeArciprestazgoName(e.arciprestazgo),
-      normalizeParroquiaName(e.parroquia),
-      e.horario,
-      e.sedeDetalle,
-      e.telefonoContacto,
-      e.coordinadores,
-      String(Math.max(0, e.cuposTotales - e.cuposReservados)),
-      String(e.cuposTotales),
-      e.estado,
-    ]);
-    const csvContent =
-      '\uFEFF' +
-      [headers, ...rows]
-        .map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-        .join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Cartelera_EPIM_Maracaibo_${publicYear}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
   const cleanPhoneForWhatsApp = (phone: string) => phone.replace(/[^\d]/g, '');
 
   return (
@@ -235,24 +187,6 @@ export const CarteleraSection: React.FC<CarteleraSectionProps> = ({
                 Directorio
               </button>
             </div>
-
-            <button
-              type="button"
-              onClick={handleExportCsv}
-              className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-50 whitespace-nowrap shrink-0"
-            >
-              <Download className="h-3.5 w-3.5" />
-              Descargar CSV
-            </button>
-
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-50 whitespace-nowrap shrink-0"
-            >
-              <Printer className="h-3.5 w-3.5" />
-              Imprimir
-            </button>
           </div>
         </div>
 
@@ -584,7 +518,7 @@ export const CarteleraSection: React.FC<CarteleraSectionProps> = ({
                   <th className="px-4 py-3">Arciprestazgo</th>
                   <th className="px-4 py-3">Parroquia y Sede</th>
                   <th className="px-4 py-3">Teléfono y Coordinación</th>
-                  <th className="px-4 py-3 text-right">Cupos</th>
+                  <th className="w-28 px-4 py-3 text-right whitespace-nowrap">Cupos</th>
                   <th className="no-print px-4 py-3 text-right">Acción</th>
                 </tr>
               </thead>
@@ -592,6 +526,10 @@ export const CarteleraSection: React.FC<CarteleraSectionProps> = ({
                 {filteredEncounters.map((enc) => {
                   const disponibles = Math.max(0, enc.cuposTotales - enc.cuposReservados);
                   const isOpen = enc.estado === 'abierto' && disponibles > 0;
+                  const occupancyPct = Math.min(
+                    100,
+                    Math.round((enc.cuposReservados / Math.max(1, enc.cuposTotales)) * 100)
+                  );
                   return (
                     <tr key={enc.id} className="transition-colors hover:bg-zinc-50/80">
                       <td className="px-4 py-3.5 align-top tabular-nums">
@@ -624,16 +562,49 @@ export const CarteleraSection: React.FC<CarteleraSectionProps> = ({
                           <div className="mt-0.5 text-xs text-zinc-500">{enc.coordinadores}</div>
                         )}
                       </td>
-                      <td className="px-4 py-3.5 align-top text-right font-mono text-xs tabular-nums">
-                        {enc.estado === 'finalizado' ? (
-                          <span className="text-zinc-400">Realizado</span>
-                        ) : isOpen ? (
-                          <span className="font-semibold text-zinc-900">
-                            {disponibles} / {enc.cuposTotales}
+                      <td
+                        className="w-28 px-4 py-3.5 align-top text-right font-mono tabular-nums whitespace-nowrap"
+                        title={`${enc.cuposReservados} asignados de ${enc.cuposTotales} cupos totales (${disponibles} disponibles)`}
+                      >
+                        <div className="inline-flex w-20 flex-col items-end">
+                          <span
+                            className={`text-[11px] leading-tight whitespace-nowrap ${
+                              enc.estado === 'finalizado'
+                                ? 'text-zinc-400'
+                                : isOpen
+                                ? disponibles <= 5
+                                  ? 'font-semibold text-amber-700'
+                                  : 'font-semibold text-zinc-900'
+                                : 'font-medium text-zinc-400'
+                            }`}
+                          >
+                            {enc.estado === 'finalizado'
+                              ? 'Realizado'
+                              : isOpen
+                              ? `${disponibles} / ${enc.cuposTotales}`
+                              : `0 / ${enc.cuposTotales}`}
                           </span>
-                        ) : (
-                          <span className="text-zinc-400">Agotado (0/{enc.cuposTotales})</span>
-                        )}
+                          <svg
+                            viewBox="0 0 100 4"
+                            preserveAspectRatio="none"
+                            aria-hidden="true"
+                            className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-zinc-100"
+                          >
+                            <rect
+                              x="0"
+                              y="0"
+                              width={occupancyPct}
+                              height="4"
+                              className={
+                                !isOpen
+                                  ? 'fill-zinc-400'
+                                  : disponibles <= 5
+                                  ? 'fill-amber-500'
+                                  : 'fill-[#DC1F26]'
+                              }
+                            />
+                          </svg>
+                        </div>
                       </td>
                       <td className="no-print px-4 py-3.5 align-top text-right">
                         {isOpen ? (

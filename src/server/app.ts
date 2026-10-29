@@ -348,7 +348,11 @@ export function createApiApp() {
       encounterId,
       nombreNovia,
       nombreNovio,
+      cedulaNovia,
+      cedulaNovio,
       documentoIdentidad,
+      telefonoNovia,
+      telefonoNovio,
       telefonoPareja,
       correoPareja,
       parroquiaMatrimonio,
@@ -356,15 +360,30 @@ export function createApiApp() {
       observaciones,
     } = req.body as Partial<Reservation>;
 
+    const cleanCedulaNovia = (cedulaNovia || '').trim().slice(0, 40);
+    const cleanCedulaNovio = (cedulaNovio || '').trim().slice(0, 40);
+    const cleanTelNovia = (telefonoNovia || '').trim().slice(0, 40);
+    const cleanTelNovio = (telefonoNovio || '').trim().slice(0, 40);
+
+    const combinedDoc =
+      [cleanCedulaNovia, cleanCedulaNovio].filter(Boolean).join(' / ') ||
+      (documentoIdentidad || '').trim().slice(0, 90);
+    const combinedTel =
+      [cleanTelNovia, cleanTelNovio].filter(Boolean).join(' / ') ||
+      (telefonoPareja || '').trim().slice(0, 90);
+
     if (
       !encounterId ||
       !nombreNovia?.trim() ||
       !nombreNovio?.trim() ||
-      !telefonoPareja?.trim()
+      !cleanCedulaNovia ||
+      !cleanCedulaNovio ||
+      !cleanTelNovia ||
+      !cleanTelNovio
     ) {
       res.status(400).json({
         error:
-          'Por favor completa los nombres de ambos novios, el teléfono de contacto y selecciona un encuentro.',
+          'Por favor completa los nombres, cédulas de identidad y teléfonos de la novia y del novio, y selecciona un encuentro.',
       });
       return;
     }
@@ -397,6 +416,13 @@ export function createApiApp() {
     }
     encounter.updatedAt = new Date().toISOString();
 
+    const rawParMatrimonio = (parroquiaMatrimonio || '').trim();
+    const normalizedParMatrimonio = !rawParMatrimonio
+      ? ''
+      : rawParMatrimonio.toLowerCase().startsWith('otra parroquia')
+      ? rawParMatrimonio.slice(0, 140)
+      : normalizeParroquiaName(rawParMatrimonio).slice(0, 140);
+
     const randomDigits = Math.floor(1000 + Math.random() * 9000);
     const reservation: Reservation = {
       id: `res-${Date.now()}-${randomDigits}`,
@@ -408,12 +434,14 @@ export function createApiApp() {
       fechasEpim: formatEncounterDatesEs(encounter),
       nombreNovia: nombreNovia.trim().slice(0, 120),
       nombreNovio: nombreNovio.trim().slice(0, 120),
-      documentoIdentidad: (documentoIdentidad || '').trim().slice(0, 80),
-      telefonoPareja: telefonoPareja.trim().slice(0, 50),
+      cedulaNovia: cleanCedulaNovia,
+      cedulaNovio: cleanCedulaNovio,
+      documentoIdentidad: combinedDoc,
+      telefonoNovia: cleanTelNovia,
+      telefonoNovio: cleanTelNovio,
+      telefonoPareja: combinedTel,
       correoPareja: (correoPareja || '').trim().slice(0, 120),
-      parroquiaMatrimonio: parroquiaMatrimonio?.trim()
-        ? normalizeParroquiaName(parroquiaMatrimonio).slice(0, 140)
-        : '',
+      parroquiaMatrimonio: normalizedParMatrimonio,
       fechaPrevistaBoda: (fechaPrevistaBoda || '').trim().slice(0, 30),
       observaciones: (observaciones || '').trim().slice(0, 400),
       estado: 'confirmada',

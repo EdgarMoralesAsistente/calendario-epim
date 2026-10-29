@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { FileDown, RotateCcw } from 'lucide-react';
+import { Calendar, FileDown, RotateCcw, X } from 'lucide-react';
 import type { EpimStore } from '../types/epim.ts';
 import {
   getGroupedEncounterDatesEs,
@@ -12,6 +12,7 @@ import {
 import {
   type EpimReportFilters,
   filterAndSortEncountersForReport,
+  generateAndDownloadAnnualCalendarPdf,
   generateAndDownloadEpimPdf,
   groupEncountersByArciprestazgo,
 } from '../services/pdfReportService.ts';
@@ -39,9 +40,43 @@ export const AdminReportsSection: React.FC<AdminReportsSectionProps> = ({
   const [downloadingPdf, setDownloadingPdf] = useState<boolean>(false);
   const [logoSrc, setLogoSrc] = useState<string>(LOGO_URL_PRIMARY);
 
+  // State for Minimalist 1-Page Extra Oficio Calendar Modal
+  const [showCalendarModal, setShowCalendarModal] = useState<boolean>(false);
+  const [calendarTargetYear, setCalendarTargetYear] = useState<number>(defaultYear);
+  const [downloadingCalendarPdf, setDownloadingCalendarPdf] = useState<boolean>(false);
+
   useEffect(() => {
     setFilterYear(defaultYear);
+    setCalendarTargetYear(defaultYear);
   }, [defaultYear]);
+
+  // Available years with encounter counts for the Calendar Year Picker Modal
+  const calendarYearOptions = useMemo(() => {
+    const yearSet = new Set<number>(store.config.availableYears);
+    for (const enc of store.encounters) {
+      if (Number.isInteger(enc.year)) yearSet.add(enc.year);
+    }
+    return Array.from(yearSet)
+      .sort((a, b) => a - b)
+      .map((yr) => {
+        const count = store.encounters.filter((e) => e.year === yr).length;
+        return {
+          year: yr,
+          count,
+          isPublic: yr === store.config.publicYear,
+        };
+      });
+  }, [store.config.availableYears, store.config.publicYear, store.encounters]);
+
+  const selectedCalendarYearStats = useMemo(
+    () =>
+      calendarYearOptions.find((opt) => opt.year === calendarTargetYear) || {
+        year: calendarTargetYear,
+        count: store.encounters.filter((e) => e.year === calendarTargetYear).length,
+        isPublic: calendarTargetYear === store.config.publicYear,
+      },
+    [calendarYearOptions, calendarTargetYear, store.encounters, store.config.publicYear]
+  );
 
   // Build complete Arciprestazgo options (catalog + any custom ones in data)
   const arciprestazgoOptions = useMemo(() => {
@@ -200,6 +235,45 @@ export const AdminReportsSection: React.FC<AdminReportsSectionProps> = ({
     }
   };
 
+  const handleOpenCalendarModal = () => {
+    const initialYear = typeof filterYear === 'number' ? filterYear : defaultYear;
+    setCalendarTargetYear(initialYear);
+    setShowCalendarModal(true);
+  };
+
+  const handleDownloadAnnualCalendar = async () => {
+    if (selectedCalendarYearStats.count === 0) {
+      onNotify(
+        'error',
+        `No hay encuentros EPIM programados en el año ${calendarTargetYear} para generar el calendario.`
+      );
+      return;
+    }
+
+    setDownloadingCalendarPdf(true);
+    try {
+      const result = await generateAndDownloadAnnualCalendarPdf({
+        year: calendarTargetYear,
+        encounters: store.encounters,
+        config: store.config,
+      });
+      setShowCalendarModal(false);
+      onNotify(
+        'success',
+        `Calendario Arquidiocesano ${calendarTargetYear} descargado: ${result.filename} (${result.totalEncounters} encuentros en ${result.totalPages} página Extra Oficio).`
+      );
+    } catch (err) {
+      onNotify(
+        'error',
+        err instanceof Error
+          ? err.message
+          : 'No se pudo generar el Calendario Arquidiocesano en PDF.'
+      );
+    } finally {
+      setDownloadingCalendarPdf(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Main Controls & Filter Surface */}
@@ -210,9 +284,9 @@ export const AdminReportsSection: React.FC<AdminReportsSectionProps> = ({
               Informes Oficiales EPIM en PDF
             </h2>
             <p className="mt-1 max-w-2xl text-xs sm:text-sm text-zinc-600">
-              Filtra la programación por año, Arciprestazgo y Parroquia. El documento se
-              genera automáticamente ordenado por Arciprestazgo, Parroquia y fechas, con
-              membrete institucional en cada página y diagramación anti-solapamiento.
+              Filtra la programación por año, Arciprestazgo y Parroquia, o descarga el
+              Calendario Arquidiocesano anual completo en una sola hoja tamaño Extra
+              Oficio.
             </p>
           </div>
 
@@ -227,6 +301,15 @@ export const AdminReportsSection: React.FC<AdminReportsSectionProps> = ({
                 Restablecer filtros
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={handleOpenCalendarModal}
+              className="inline-flex items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-xs sm:text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-50 whitespace-nowrap shrink-0"
+            >
+              <Calendar className="h-4 w-4 text-[#DC1F26]" />
+              Calendario Arquidiocesano (.PDF)
+            </button>
 
             <button
               type="button"
@@ -600,6 +683,140 @@ export const AdminReportsSection: React.FC<AdminReportsSectionProps> = ({
           )}
         </div>
       </div>
+
+      {/* Modal: Select Year for Single-Page Extra Oficio Archdiocesan Calendar */}
+      {showCalendarModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/50 p-4 backdrop-blur-[1px]"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="calendar-pdf-modal-title"
+          onClick={() => {
+            if (!downloadingCalendarPdf) setShowCalendarModal(false);
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-xl border border-zinc-200 bg-white p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold text-[#DC1F26]">
+                  Formato Extra Oficio · Vertical · 1 Página
+                </p>
+                <h3
+                  id="calendar-pdf-modal-title"
+                  className="mt-1 font-display text-lg font-bold text-zinc-900"
+                >
+                  Calendario Arquidiocesano de EPIM
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCalendarModal(false)}
+                disabled={downloadingCalendarPdf}
+                aria-label="Cerrar ventana"
+                className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <p className="mt-2 text-xs sm:text-sm leading-relaxed text-zinc-600">
+              Selecciona el año pastoral que deseas reportar. Se incluirán todos los
+              encuentros programados de ese año ajustados automáticamente en una sola
+              página minimalista con fechas, parroquias y teléfonos de contacto.
+            </p>
+
+            <div className="mt-5">
+              <p className="block text-xs font-semibold text-zinc-800">
+                ¿Qué año deseas reportar?
+              </p>
+
+              <div className="mt-2 space-y-2">
+                {calendarYearOptions.map((opt) => {
+                  const isSelected = opt.year === calendarTargetYear;
+                  return (
+                    <button
+                      key={opt.year}
+                      type="button"
+                      onClick={() => setCalendarTargetYear(opt.year)}
+                      className={`flex w-full items-center justify-between rounded-lg border px-3.5 py-2.5 text-left text-xs sm:text-sm transition-colors ${
+                        isSelected
+                          ? 'border-[#DC1F26] bg-[#FEF2F2]/70 text-zinc-900'
+                          : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50'
+                      }`}
+                    >
+                      <span className="font-semibold tabular-nums">
+                        Año {opt.year}
+                        {opt.isPublic ? (
+                          <span className="ml-1.5 font-normal text-zinc-500">
+                            · Cartelera pública
+                          </span>
+                        ) : null}
+                      </span>
+                      <span
+                        className={`font-mono text-xs tabular-nums ${
+                          opt.count > 0
+                            ? isSelected
+                              ? 'font-bold text-[#DC1F26]'
+                              : 'font-medium text-zinc-600'
+                            : 'text-zinc-400'
+                        }`}
+                      >
+                        {opt.count} {opt.count === 1 ? 'encuentro' : 'encuentros'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="mt-4 border-t border-zinc-100 pt-3 text-xs text-zinc-500 tabular-nums">
+              {selectedCalendarYearStats.count > 0 ? (
+                <span>
+                  El PDF incluirá los{' '}
+                  <strong className="font-semibold text-zinc-800">
+                    {selectedCalendarYearStats.count} encuentros
+                  </strong>{' '}
+                  del año{' '}
+                  <strong className="font-semibold text-zinc-800">
+                    {calendarTargetYear}
+                  </strong>{' '}
+                  en 1 hoja Extra Oficio (215,9 × 355,6 mm) vertical.
+                </span>
+              ) : (
+                <span className="text-[#DC1F26]">
+                  No hay encuentros programados para el año {calendarTargetYear}. Elige un
+                  año con registros activos.
+                </span>
+              )}
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setShowCalendarModal(false)}
+                disabled={downloadingCalendarPdf}
+                className="rounded-lg border border-zinc-200 bg-white px-4 py-2 text-xs sm:text-sm font-medium text-zinc-700 hover:bg-zinc-50 whitespace-nowrap shrink-0"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadAnnualCalendar}
+                disabled={downloadingCalendarPdf || selectedCalendarYearStats.count === 0}
+                className="inline-flex items-center gap-2 rounded-lg bg-[#DC1F26] px-4 py-2 text-xs sm:text-sm font-semibold text-white transition-colors hover:bg-[#B9191F] disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap shrink-0"
+              >
+                <FileDown className="h-4 w-4" />
+                {downloadingCalendarPdf
+                  ? 'Generando PDF...'
+                  : `Descargar Calendario ${calendarTargetYear}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

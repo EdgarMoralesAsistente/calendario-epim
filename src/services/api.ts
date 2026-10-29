@@ -58,8 +58,12 @@ export async function submitPublicReservation(payload: {
   encounterId: string;
   nombreNovia: string;
   nombreNovio: string;
-  documentoIdentidad: string;
-  telefonoPareja: string;
+  cedulaNovia: string;
+  cedulaNovio: string;
+  documentoIdentidad?: string;
+  telefonoNovia: string;
+  telefonoNovio: string;
+  telefonoPareja?: string;
   correoPareja: string;
   parroquiaMatrimonio: string;
   fechaPrevistaBoda: string;

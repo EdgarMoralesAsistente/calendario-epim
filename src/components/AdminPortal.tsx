@@ -836,11 +836,15 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       'Parroquia Sede EPIM',
       'Fechas EPIM',
       'Novia',
+      'Cédula Novia',
+      'Teléfono Novia',
       'Novio',
-      'Cédulas',
-      'Teléfono',
+      'Cédula Novio',
+      'Teléfono Novio',
+      'Cédulas (Resumen)',
+      'Teléfonos (Resumen)',
       'Correo',
-      'Parroquia Matrimonio',
+      'Parroquia Matrimonio / Expediente',
       'Fecha Boda',
       'Estado',
     ];
@@ -850,7 +854,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       r.parroquiaEpim,
       r.fechasEpim,
       r.nombreNovia,
+      r.cedulaNovia || '',
+      r.telefonoNovia || '',
       r.nombreNovio,
+      r.cedulaNovio || '',
+      r.telefonoNovio || '',
       r.documentoIdentidad,
       r.telefonoPareja,
       r.correoPareja,
@@ -1940,9 +1948,21 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                               <div className="font-semibold text-zinc-900">
                                 {resItem.nombreNovia} & {resItem.nombreNovio}
                               </div>
-                              {resItem.documentoIdentidad && (
-                                <div className="text-xs text-zinc-500 tabular-nums">
-                                  {resItem.documentoIdentidad}
+                              {resItem.cedulaNovia || resItem.cedulaNovio ? (
+                                <div className="mt-0.5 text-xs text-zinc-500 tabular-nums">
+                                  Novia: {resItem.cedulaNovia || '—'} · Novio:{' '}
+                                  {resItem.cedulaNovio || '—'}
+                                </div>
+                              ) : (
+                                resItem.documentoIdentidad && (
+                                  <div className="mt-0.5 text-xs text-zinc-500 tabular-nums">
+                                    {resItem.documentoIdentidad}
+                                  </div>
+                                )
+                              )}
+                              {resItem.parroquiaMatrimonio && (
+                                <div className="mt-0.5 text-xs text-zinc-500">
+                                  Expediente/Boda: {resItem.parroquiaMatrimonio}
                                 </div>
                               )}
                             </td>
@@ -1953,10 +1973,21 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                               <div className="text-xs text-zinc-500">{resItem.fechasEpim}</div>
                             </td>
                             <td className="px-3 py-3.5 align-top">
-                              <div className="font-mono text-xs text-zinc-800 tabular-nums">
-                                {resItem.telefonoPareja}
-                              </div>
-                              <div className="text-xs text-zinc-500">{resItem.correoPareja}</div>
+                              {resItem.telefonoNovia || resItem.telefonoNovio ? (
+                                <div className="space-y-0.5 font-mono text-xs text-zinc-800 tabular-nums">
+                                  <div>Novia: {resItem.telefonoNovia || '—'}</div>
+                                  <div>Novio: {resItem.telefonoNovio || '—'}</div>
+                                </div>
+                              ) : (
+                                <div className="font-mono text-xs text-zinc-800 tabular-nums">
+                                  {resItem.telefonoPareja}
+                                </div>
+                              )}
+                              {resItem.correoPareja && (
+                                <div className="mt-0.5 text-xs text-zinc-500">
+                                  {resItem.correoPareja}
+                                </div>
+                              )}
                             </td>
                             <td className="px-3 py-3.5 align-top text-xs font-medium capitalize">
                               {resItem.estado === 'confirmada' ? (

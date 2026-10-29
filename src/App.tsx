@@ -344,6 +344,7 @@ export default function App() {
           <BookingAndContactSection
             publicYear={board.publicYear}
             encounters={board.encounters}
+            customParishes={board.customParishes}
             preselectedEncounterId={preselectedEncounterId}
             activeTab={contactTab}
             onTabChange={setContactTab}

@@ -34,7 +34,11 @@ export interface Reservation {
   fechasEpim: string;
   nombreNovia: string;
   nombreNovio: string;
+  cedulaNovia?: string;
+  cedulaNovio?: string;
   documentoIdentidad: string;
+  telefonoNovia?: string;
+  telefonoNovio?: string;
   telefonoPareja: string;
   correoPareja: string;
   parroquiaMatrimonio: string;

@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf';
 import autoTable, { type RowInput } from 'jspdf-autotable';
 import type { AppConfig, EpimEncounter, Reservation } from '../types/epim.ts';
 import {
+  formatMonthName,
   getEncounterDates,
   getGroupedEncounterDatesEs,
   LOGO_URL_FALLBACK,
@@ -1086,4 +1087,696 @@ export async function generateAndDownloadEpimPdf(params: {
   doc.save(filename);
 
   return { filename, totalPages };
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// SINGLE-PAGE EXTRA OFICIO MINIMALIST ARCHDIOCESAN CALENDAR PDF
+// Paper size: Extra Oficio (8.5" × 14" = 215.9 mm × 355.6 mm), Vertical (Portrait)
+// Guaranteed 1-page adaptive layout containing 100% of the selected year's EPIMs
+// ──────────────────────────────────────────────────────────────────────────────
+
+interface CalendarWrappedDateLine {
+  prefix?: string;
+  rest: string;
+}
+
+interface MeasuredCalendarRow {
+  parishLines: string[];
+  dateLines: CalendarWrappedDateLine[];
+  phoneLines: string[];
+  heightMm: number;
+}
+
+interface MeasuredCalendarItem {
+  kind: 'month' | 'row';
+  monthLabel?: string;
+  monthCount?: number;
+  row?: MeasuredCalendarRow;
+  isEvenRow?: boolean;
+  heightMm: number;
+}
+
+interface CalendarLayoutPreset {
+  columns: 1 | 2;
+  fontSize: number;
+  lineHeightFactor: number;
+  rowPadY: number;
+  monthHeaderH: number;
+  monthGapTop: number;
+  tableHeaderH: number;
+}
+
+function sortEncountersChronologicallyForCalendar(
+  encounters: EpimEncounter[]
+): EpimEncounter[] {
+  return encounters
+    .map((enc) => ({
+      ...enc,
+      arciprestazgo: normalizeArciprestazgoName(enc.arciprestazgo),
+      parroquia: normalizeParroquiaName(enc.parroquia),
+    }))
+    .sort((a, b) => {
+      const firstA = getEncounterDates(a)[0] || a.fechaInicio || '';
+      const firstB = getEncounterDates(b)[0] || b.fechaInicio || '';
+      const cmpStart = firstA.localeCompare(firstB);
+      if (cmpStart !== 0) return cmpStart;
+
+      const cmpEnd = (a.fechaFin || '').localeCompare(b.fechaFin || '');
+      if (cmpEnd !== 0) return cmpEnd;
+
+      return a.parroquia.localeCompare(b.parroquia, 'es', { sensitivity: 'base' });
+    });
+}
+
+function wrapCalendarDateLines(
+  doc: jsPDF,
+  enc: EpimEncounter,
+  reportYear: number,
+  fontSize: number,
+  maxWidthMm: number
+): CalendarWrappedDateLine[] {
+  const summary = getGroupedEncounterDatesEs(enc);
+  doc.setFontSize(fontSize);
+
+  if (summary.groups.length === 0) {
+    doc.setFont('helvetica', 'normal');
+    const fallback = cleanPdfText(summary.monthsHeadline || 'Por confirmar');
+    const wrapped = doc.splitTextToSize(fallback, maxWidthMm) as string[];
+    return (wrapped.length > 0 ? wrapped : ['Por confirmar']).map((line) => ({
+      rest: line,
+    }));
+  }
+
+  const lines: CalendarWrappedDateLine[] = [];
+  for (const grp of summary.groups) {
+    const prefix = cleanPdfText(
+      grp.year === reportYear
+        ? `${grp.monthName}:`
+        : `${grp.monthName} ${grp.year}:`
+    );
+    const daysText = cleanPdfText(grp.daysLabel);
+
+    doc.setFont('helvetica', 'bold');
+    const prefixSpaceW = doc.getTextWidth(`${prefix} `);
+
+    doc.setFont('helvetica', 'normal');
+    const words = daysText.split(/\s+/).filter(Boolean);
+    if (words.length === 0) {
+      lines.push({ prefix, rest: '' });
+      continue;
+    }
+
+    const firstMaxW = Math.max(8, maxWidthMm - prefixSpaceW);
+    const firstWords: string[] = [];
+    let idx = 0;
+    while (idx < words.length) {
+      const candidate = [...firstWords, words[idx]].join(' ');
+      if (doc.getTextWidth(candidate) <= firstMaxW) {
+        firstWords.push(words[idx]);
+        idx += 1;
+      } else {
+        break;
+      }
+    }
+
+    if (firstWords.length > 0) {
+      lines.push({ prefix, rest: firstWords.join(' ') });
+    } else {
+      lines.push({ prefix, rest: '' });
+    }
+
+    if (idx < words.length) {
+      const rem = words.slice(idx).join(' ');
+      const cont = doc.splitTextToSize(rem, maxWidthMm) as string[];
+      for (const c of cont) {
+        if (c) lines.push({ rest: c });
+      }
+    }
+  }
+
+  return lines;
+}
+
+function measureCalendarLayout(
+  doc: jsPDF,
+  monthBuckets: Array<{ month: number; label: string; encounters: EpimEncounter[] }>,
+  reportYear: number,
+  usableWidthMm: number,
+  usableHeightMm: number,
+  preset: CalendarLayoutPreset
+): {
+  fits: boolean;
+  colWidth: number;
+  colGap: number;
+  dateColW: number;
+  parishColW: number;
+  phoneColW: number;
+  columnsItems: MeasuredCalendarItem[][];
+  maxRenderedHeight: number;
+} {
+  const colGap = preset.columns === 2 ? 5.5 : 0;
+  const colWidth =
+    preset.columns === 2 ? (usableWidthMm - colGap) / 2 : usableWidthMm;
+
+  const phoneColW = preset.columns === 2 ? 22.5 : 34;
+  const dateColW =
+    preset.columns === 2
+      ? Math.round((colWidth - phoneColW) * 0.48 * 10) / 10
+      : Math.round((colWidth - phoneColW) * 0.49 * 10) / 10;
+  const parishColW = colWidth - phoneColW - dateColW;
+
+  const cellPadX = preset.columns === 2 ? 1.6 : 2.4;
+  const k = doc.internal.scaleFactor;
+  const lineH = (preset.fontSize / k) * preset.lineHeightFactor;
+
+  const stream: MeasuredCalendarItem[] = [];
+
+  monthBuckets.forEach((bucket, bucketIdx) => {
+    stream.push({
+      kind: 'month',
+      monthLabel: bucket.label,
+      monthCount: bucket.encounters.length,
+      heightMm:
+        preset.monthHeaderH + (bucketIdx === 0 ? 0 : preset.monthGapTop),
+    });
+
+    bucket.encounters.forEach((enc, rowIdx) => {
+      const dateLines = wrapCalendarDateLines(
+        doc,
+        enc,
+        reportYear,
+        preset.fontSize,
+        dateColW - cellPadX * 2
+      );
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(preset.fontSize);
+      const parishRaw = cleanPdfText(normalizeParroquiaName(enc.parroquia));
+      const parishLines = (
+        doc.splitTextToSize(parishRaw, parishColW - cellPadX * 2) as string[]
+      ).filter(Boolean);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(preset.fontSize);
+      const phoneRaw = cleanPdfText(enc.telefonoContacto || 'En despacho');
+      const phoneLines = (
+        doc.splitTextToSize(phoneRaw, phoneColW - cellPadX * 2) as string[]
+      ).filter(Boolean);
+
+      const maxLines = Math.max(
+        1,
+        dateLines.length,
+        parishLines.length,
+        phoneLines.length
+      );
+      const rowHeight = maxLines * lineH + preset.rowPadY * 2;
+
+      stream.push({
+        kind: 'row',
+        row: {
+          parishLines: parishLines.length > 0 ? parishLines : [parishRaw],
+          dateLines,
+          phoneLines: phoneLines.length > 0 ? phoneLines : [phoneRaw],
+          heightMm: rowHeight,
+        },
+        isEvenRow: rowIdx % 2 === 1,
+        heightMm: rowHeight,
+      });
+    });
+  });
+
+  const maxColBodyH = usableHeightMm - preset.tableHeaderH;
+
+  if (preset.columns === 1) {
+    const totalBodyH = stream.reduce((acc, item) => acc + item.heightMm, 0);
+    const totalH = preset.tableHeaderH + totalBodyH;
+    return {
+      fits: totalH <= usableHeightMm,
+      colWidth,
+      colGap,
+      dateColW,
+      parishColW,
+      phoneColW,
+      columnsItems: [stream],
+      maxRenderedHeight: totalH,
+    };
+  }
+
+  // Pack across 2 columns cleanly, repeating "(cont.)" month header if split mid-month
+  const rawTotalBodyH = stream.reduce((acc, item) => acc + item.heightMm, 0);
+  const idealSplitBodyH = Math.min(maxColBodyH, rawTotalBodyH * 0.52 + 4);
+
+  const col1: MeasuredCalendarItem[] = [];
+  const col2: MeasuredCalendarItem[] = [];
+  let col1H = 0;
+  let col2H = 0;
+  let currentCol: 1 | 2 = 1;
+  let activeMonthLabel = '';
+
+  for (let i = 0; i < stream.length; i++) {
+    const item = stream[i];
+    const nextItem = stream[i + 1];
+
+    if (item.kind === 'month') {
+      activeMonthLabel = item.monthLabel || '';
+      const firstRowH = nextItem?.kind === 'row' ? nextItem.heightMm : 0;
+      const effectiveH =
+        col1.length === 0 ? preset.monthHeaderH : item.heightMm;
+
+      if (
+        currentCol === 1 &&
+        col1.length > 0 &&
+        (col1H + effectiveH + firstRowH > maxColBodyH ||
+          (col1H >= idealSplitBodyH && col1H + effectiveH + firstRowH > idealSplitBodyH))
+      ) {
+        currentCol = 2;
+      }
+
+      if (currentCol === 1) {
+        const adjusted =
+          col1.length === 0 ? { ...item, heightMm: preset.monthHeaderH } : item;
+        col1.push(adjusted);
+        col1H += adjusted.heightMm;
+      } else {
+        const adjusted =
+          col2.length === 0 ? { ...item, heightMm: preset.monthHeaderH } : item;
+        col2.push(adjusted);
+        col2H += adjusted.heightMm;
+      }
+    } else {
+      if (currentCol === 1 && col1H + item.heightMm > maxColBodyH) {
+        currentCol = 2;
+        if (activeMonthLabel) {
+          const contHeader: MeasuredCalendarItem = {
+            kind: 'month',
+            monthLabel: `${activeMonthLabel} (cont.)`,
+            heightMm: preset.monthHeaderH,
+          };
+          col2.push(contHeader);
+          col2H += contHeader.heightMm;
+        }
+      }
+
+      if (currentCol === 1) {
+        col1.push(item);
+        col1H += item.heightMm;
+      } else {
+        col2.push(item);
+        col2H += item.heightMm;
+      }
+    }
+  }
+
+  const maxRenderedHeight =
+    preset.tableHeaderH + Math.max(col1H, col2H);
+
+  return {
+    fits: maxRenderedHeight <= usableHeightMm,
+    colWidth,
+    colGap,
+    dateColW,
+    parishColW,
+    phoneColW,
+    columnsItems: col2.length > 0 ? [col1, col2] : [col1],
+    maxRenderedHeight,
+  };
+}
+
+export async function generateAndDownloadAnnualCalendarPdf(params: {
+  year: number;
+  encounters: EpimEncounter[];
+  config: AppConfig;
+}): Promise<{ filename: string; totalPages: number; totalEncounters: number }> {
+  const { year, encounters, config } = params;
+  const yearEncounters = sortEncountersChronologicallyForCalendar(
+    encounters.filter((e) => e.year === year)
+  );
+  const logoAsset = await getInstitutionalLogoAsset();
+
+  // Extra Oficio paper size in Portrait: 8.5" x 14" = 215.9 mm x 355.6 mm
+  const PAGE_W = 215.9;
+  const PAGE_H = 355.6;
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: [PAGE_W, PAGE_H],
+    compress: true,
+  });
+
+  const marginX = 11;
+  const contentWidth = PAGE_W - marginX * 2; // 193.9 mm
+  const headerBottomY = 21.2;
+  const bodyTopY = 23.8;
+  const footerLineY = PAGE_H - 9.2; // 346.4 mm
+  const usableBodyHeight = footerLineY - 2.0 - bodyTopY; // 320.6 mm
+
+  // ──────────────────────────────────────────────────────────────
+  // 1. SIMPLIFIED INSTITUTIONAL BRANDING HEADER
+  // ──────────────────────────────────────────────────────────────
+  doc.setFillColor(220, 31, 38); // Institutional Crimson #DC1F26
+  doc.rect(0, 0, PAGE_W, 1.6, 'F');
+
+  const logoSize = 13.5;
+  if (logoAsset) {
+    const scale = Math.min(logoSize / logoAsset.width, logoSize / logoAsset.height);
+    const drawW = logoAsset.width * scale;
+    const drawH = logoAsset.height * scale;
+    const drawX = marginX + (logoSize - drawW) / 2;
+    const drawY = 4.6 + (logoSize - drawH) / 2;
+    doc.addImage(
+      logoAsset.dataUrl,
+      'PNG',
+      drawX,
+      drawY,
+      drawW,
+      drawH,
+      'logo-calendario-epim',
+      'FAST'
+    );
+  } else {
+    doc.setDrawColor(220, 31, 38);
+    doc.setLineWidth(0.4);
+    doc.roundedRect(marginX, 5, 13, 13, 1.5, 1.5, 'S');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.setTextColor(220, 31, 38);
+    doc.text('EPIM', marginX + 6.5, 12.5, { align: 'center' });
+  }
+
+  const titleX = marginX + logoSize + 3.5;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.4);
+  doc.setTextColor(220, 31, 38);
+  doc.text(
+    cleanPdfText('ARQUIDIÓCESIS DE MARACAIBO · SECRETARIADO DE PASTORAL FAMILIAR'),
+    titleX,
+    8.2
+  );
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12.2);
+  doc.setTextColor(24, 24, 27);
+  doc.text(
+    cleanPdfText(`Calendario Arquidiocesano de Encuentros EPIM ${year}`),
+    titleX,
+    13.5
+  );
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.4);
+  doc.setTextColor(113, 113, 122);
+  doc.text(
+    cleanPdfText(
+      'Encuentros de Preparación Inmediata al Matrimonio · Fechas, parroquias sede y teléfonos de contacto'
+    ),
+    titleX,
+    17.8
+  );
+
+  // Right-aligned year & encounter count
+  const rightX = PAGE_W - marginX;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(220, 31, 38);
+  doc.text(String(year), rightX, 11.8, { align: 'right' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.3);
+  doc.setTextColor(82, 82, 91);
+  doc.text(
+    cleanPdfText(
+      `${yearEncounters.length} ${
+        yearEncounters.length === 1 ? 'encuentro' : 'encuentros'
+      }`
+    ),
+    rightX,
+    16.8,
+    { align: 'right' }
+  );
+
+  // Header bottom hairline + crimson accent rule
+  doc.setDrawColor(228, 228, 231);
+  doc.setLineWidth(0.25);
+  doc.line(marginX, headerBottomY, rightX, headerBottomY);
+
+  doc.setDrawColor(220, 31, 38);
+  doc.setLineWidth(0.65);
+  doc.line(marginX, headerBottomY, marginX + 28, headerBottomY);
+
+  // ──────────────────────────────────────────────────────────────
+  // 2. ADAPTIVE SINGLE-PAGE CALENDAR BODY
+  // ──────────────────────────────────────────────────────────────
+  if (yearEncounters.length === 0) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9.5);
+    doc.setTextColor(113, 113, 122);
+    doc.text(
+      cleanPdfText(`No hay encuentros EPIM programados para el año ${year}.`),
+      PAGE_W / 2,
+      bodyTopY + 24,
+      { align: 'center' }
+    );
+  } else {
+    // Group chronologically by start month (1..12)
+    const bucketMap = new Map<number, EpimEncounter[]>();
+    for (const enc of yearEncounters) {
+      const firstIso = getEncounterDates(enc)[0] || enc.fechaInicio || '';
+      const startMonth =
+        Number(firstIso.split('-')[1]) || Math.min(12, Math.max(1, enc.mes || 1));
+      const existing = bucketMap.get(startMonth);
+      if (existing) {
+        existing.push(enc);
+      } else {
+        bucketMap.set(startMonth, [enc]);
+      }
+    }
+
+    const monthBuckets = Array.from(bucketMap.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([month, list]) => ({
+        month,
+        label: formatMonthName(month).toUpperCase(),
+        encounters: list,
+      }));
+
+    // Ordered candidate presets from spacious 1-column down to ultra-dense 2-column
+    const candidatePresets: CalendarLayoutPreset[] = [
+      { columns: 1, fontSize: 9.0, lineHeightFactor: 1.22, rowPadY: 2.1, monthHeaderH: 5.6, monthGapTop: 2.0, tableHeaderH: 6.2 },
+      { columns: 1, fontSize: 8.6, lineHeightFactor: 1.2, rowPadY: 1.85, monthHeaderH: 5.3, monthGapTop: 1.7, tableHeaderH: 5.8 },
+      { columns: 1, fontSize: 8.2, lineHeightFactor: 1.18, rowPadY: 1.6, monthHeaderH: 5.0, monthGapTop: 1.4, tableHeaderH: 5.5 },
+      { columns: 1, fontSize: 7.8, lineHeightFactor: 1.16, rowPadY: 1.35, monthHeaderH: 4.7, monthGapTop: 1.2, tableHeaderH: 5.2 },
+      { columns: 1, fontSize: 7.4, lineHeightFactor: 1.15, rowPadY: 1.15, monthHeaderH: 4.4, monthGapTop: 1.0, tableHeaderH: 5.0 },
+      { columns: 1, fontSize: 7.0, lineHeightFactor: 1.14, rowPadY: 0.95, monthHeaderH: 4.1, monthGapTop: 0.8, tableHeaderH: 4.8 },
+      // 2-column presets when encounter count is high so all rows remain crisp on 1 page
+      { columns: 2, fontSize: 7.8, lineHeightFactor: 1.16, rowPadY: 1.35, monthHeaderH: 4.6, monthGapTop: 1.2, tableHeaderH: 5.2 },
+      { columns: 2, fontSize: 7.4, lineHeightFactor: 1.15, rowPadY: 1.15, monthHeaderH: 4.3, monthGapTop: 1.0, tableHeaderH: 5.0 },
+      { columns: 2, fontSize: 7.0, lineHeightFactor: 1.14, rowPadY: 1.0, monthHeaderH: 4.0, monthGapTop: 0.8, tableHeaderH: 4.8 },
+      { columns: 2, fontSize: 6.6, lineHeightFactor: 1.13, rowPadY: 0.85, monthHeaderH: 3.8, monthGapTop: 0.7, tableHeaderH: 4.5 },
+      { columns: 2, fontSize: 6.2, lineHeightFactor: 1.12, rowPadY: 0.72, monthHeaderH: 3.5, monthGapTop: 0.6, tableHeaderH: 4.2 },
+      { columns: 2, fontSize: 5.8, lineHeightFactor: 1.12, rowPadY: 0.62, monthHeaderH: 3.3, monthGapTop: 0.5, tableHeaderH: 4.0 },
+      { columns: 2, fontSize: 5.4, lineHeightFactor: 1.1, rowPadY: 0.52, monthHeaderH: 3.1, monthGapTop: 0.4, tableHeaderH: 3.8 },
+      { columns: 2, fontSize: 5.0, lineHeightFactor: 1.1, rowPadY: 0.45, monthHeaderH: 2.9, monthGapTop: 0.35, tableHeaderH: 3.6 },
+    ];
+
+    let chosenPreset = candidatePresets[candidatePresets.length - 1];
+    let chosenLayout = measureCalendarLayout(
+      doc,
+      monthBuckets,
+      year,
+      contentWidth,
+      usableBodyHeight,
+      chosenPreset
+    );
+
+    for (const preset of candidatePresets) {
+      const measured = measureCalendarLayout(
+        doc,
+        monthBuckets,
+        year,
+        contentWidth,
+        usableBodyHeight,
+        preset
+      );
+      if (measured.fits) {
+        chosenPreset = preset;
+        chosenLayout = measured;
+        break;
+      }
+    }
+
+    // Safety compression ratio if an extreme dataset (>130 encounters) still slightly exceeds usableBodyHeight
+    const vScale =
+      chosenLayout.maxRenderedHeight > usableBodyHeight
+        ? usableBodyHeight / chosenLayout.maxRenderedHeight
+        : 1;
+
+    const effectiveFontSize = chosenPreset.fontSize * Math.min(1, vScale);
+    const k = doc.internal.scaleFactor;
+    const fontSizeMm = effectiveFontSize / k;
+    const lineH = fontSizeMm * chosenPreset.lineHeightFactor;
+    const cellPadX = chosenLayout.columnsItems.length === 2 ? 1.6 : 2.4;
+    const tableHeaderH = chosenPreset.tableHeaderH * vScale;
+
+    chosenLayout.columnsItems.forEach((colStream, colIdx) => {
+      const colStartX =
+        marginX + colIdx * (chosenLayout.colWidth + chosenLayout.colGap);
+      let y = bodyTopY;
+
+      // Minimalist Table Column Header
+      doc.setFillColor(74, 75, 78); // Institutional Charcoal #4A4B4E
+      doc.rect(colStartX, y, chosenLayout.colWidth, tableHeaderH, 'F');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(Math.min(8.2, effectiveFontSize + 0.2));
+      doc.setTextColor(255, 255, 255);
+      const headerBaselineY = y + tableHeaderH * 0.68;
+
+      doc.text('Fechas', colStartX + cellPadX, headerBaselineY);
+      doc.text(
+        'Parroquia Sede',
+        colStartX + chosenLayout.dateColW + cellPadX,
+        headerBaselineY
+      );
+      doc.text(
+        cleanPdfText('Teléfono'),
+        colStartX + chosenLayout.colWidth - cellPadX,
+        headerBaselineY,
+        { align: 'right' }
+      );
+
+      y += tableHeaderH;
+
+      // Render stream of Month Headers + Encounter Rows
+      for (const item of colStream) {
+        const scaledItemH = item.heightMm * vScale;
+
+        if (item.kind === 'month') {
+          const monthBarH = chosenPreset.monthHeaderH * vScale;
+          const topGap = scaledItemH - monthBarH;
+          y += topGap;
+
+          doc.setFillColor(254, 242, 242); // Soft crimson tint #FEF2F2
+          doc.rect(colStartX, y, chosenLayout.colWidth, monthBarH, 'F');
+
+          doc.setDrawColor(254, 202, 202);
+          doc.setLineWidth(0.18);
+          doc.line(
+            colStartX,
+            y + monthBarH,
+            colStartX + chosenLayout.colWidth,
+            y + monthBarH
+          );
+
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(Math.max(5.2, effectiveFontSize - 0.1));
+          doc.setTextColor(185, 25, 31); // #B9191F
+          const mBaseline = y + monthBarH * 0.7;
+          doc.text(cleanPdfText(item.monthLabel || ''), colStartX + cellPadX, mBaseline);
+
+          y += monthBarH;
+        } else if (item.row) {
+          if (item.isEvenRow) {
+            doc.setFillColor(250, 250, 250);
+            doc.rect(colStartX, y, chosenLayout.colWidth, scaledItemH, 'F');
+          }
+
+          // Subtle row bottom hairline
+          doc.setDrawColor(236, 236, 240);
+          doc.setLineWidth(0.15);
+          doc.line(
+            colStartX,
+            y + scaledItemH,
+            colStartX + chosenLayout.colWidth,
+            y + scaledItemH
+          );
+
+          const firstBaselineY =
+            y + chosenPreset.rowPadY * vScale + fontSizeMm * 0.84;
+
+          // Column 1: Fechas (Bold Month Prefix + Regular Days)
+          doc.setFontSize(effectiveFontSize);
+          item.row.dateLines.forEach((dLine, idx) => {
+            const lineY = firstBaselineY + idx * lineH;
+            const dateX = colStartX + cellPadX;
+            if (dLine.prefix) {
+              doc.setFont('helvetica', 'bold');
+              doc.setTextColor(220, 31, 38);
+              doc.text(dLine.prefix, dateX, lineY);
+              if (dLine.rest) {
+                const pW = doc.getTextWidth(`${dLine.prefix} `);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(39, 39, 42);
+                doc.text(dLine.rest, dateX + pW, lineY);
+              }
+            } else {
+              doc.setFont('helvetica', 'normal');
+              doc.setTextColor(39, 39, 42);
+              doc.text(dLine.rest, dateX, lineY);
+            }
+          });
+
+          // Column 2: Parroquia Sede
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(effectiveFontSize);
+          doc.setTextColor(24, 24, 27);
+          const parishX = colStartX + chosenLayout.dateColW + cellPadX;
+          item.row.parishLines.forEach((pLine, idx) => {
+            doc.text(pLine, parishX, firstBaselineY + idx * lineH);
+          });
+
+          // Column 3: Teléfono de Contacto (Right-aligned)
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(effectiveFontSize);
+          doc.setTextColor(63, 63, 70);
+          const phoneRightX = colStartX + chosenLayout.colWidth - cellPadX;
+          item.row.phoneLines.forEach((tLine, idx) => {
+            doc.text(tLine, phoneRightX, firstBaselineY + idx * lineH, {
+              align: 'right',
+            });
+          });
+
+          y += scaledItemH;
+        }
+      }
+
+      // Outer hairline border around the column table for crisp finish
+      doc.setDrawColor(228, 228, 231);
+      doc.setLineWidth(0.2);
+      doc.rect(colStartX, bodyTopY, chosenLayout.colWidth, y - bodyTopY, 'S');
+    });
+  }
+
+  // ──────────────────────────────────────────────────────────────
+  // 3. MINIMALIST SINGLE-LINE FOOTER
+  // ──────────────────────────────────────────────────────────────
+  doc.setDrawColor(228, 228, 231);
+  doc.setLineWidth(0.22);
+  doc.line(marginX, footerLineY, rightX, footerLineY);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.0);
+  doc.setTextColor(113, 113, 122);
+  doc.text(
+    cleanPdfText(
+      `Secretariado de Pastoral Familiar · Arquidiócesis de Maracaibo · Tel: ${config.secretariadoTelefono}`
+    ),
+    marginX,
+    footerLineY + 4.2
+  );
+
+  doc.text(
+    cleanPdfText(`Calendario Oficial EPIM ${year} · Formato Extra Oficio`),
+    rightX,
+    footerLineY + 4.2,
+    { align: 'right' }
+  );
+
+  const filename = `Calendario_Arquidiocesano_EPIM_${year}_ExtraOficio.pdf`;
+  doc.save(filename);
+
+  return {
+    filename,
+    totalPages: doc.getNumberOfPages(),
+    totalEncounters: yearEncounters.length,
+  };
 }

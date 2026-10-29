@@ -243,6 +243,10 @@ export async function pushStoreToSpreadsheet(
       'Observaciones',
       'Estado',
       'Fecha Registro',
+      'Cédula Novia',
+      'Cédula Novio',
+      'Teléfono Novia',
+      'Teléfono Novio',
     ],
     ...store.reservations.map((r) => [
       r.id,
@@ -254,14 +258,22 @@ export async function pushStoreToSpreadsheet(
       r.fechasEpim,
       r.nombreNovia,
       r.nombreNovio,
-      r.documentoIdentidad,
-      r.telefonoPareja,
+      r.documentoIdentidad || [r.cedulaNovia, r.cedulaNovio].filter(Boolean).join(' / '),
+      r.telefonoPareja || [r.telefonoNovia, r.telefonoNovio].filter(Boolean).join(' / '),
       r.correoPareja,
-      r.parroquiaMatrimonio?.trim() ? normalizeParroquiaName(r.parroquiaMatrimonio) : '',
+      r.parroquiaMatrimonio?.trim()
+        ? r.parroquiaMatrimonio.toLowerCase().startsWith('otra parroquia')
+          ? r.parroquiaMatrimonio.trim()
+          : normalizeParroquiaName(r.parroquiaMatrimonio)
+        : '',
       r.fechaPrevistaBoda,
       r.observaciones,
       r.estado,
       r.createdAt,
+      r.cedulaNovia || '',
+      r.cedulaNovio || '',
+      r.telefonoNovia || '',
+      r.telefonoNovio || '',
     ]),
   ];
 
@@ -395,7 +407,7 @@ export async function pullStoreFromSpreadsheet(
 
   const ranges = [
     `ranges=${encodeURIComponent(`${REQUIRED_TABS.ENCUENTROS}!A2:R1500`)}`,
-    `ranges=${encodeURIComponent(`${REQUIRED_TABS.RESERVACIONES}!A2:Q4000`)}`,
+    `ranges=${encodeURIComponent(`${REQUIRED_TABS.RESERVACIONES}!A2:U4000`)}`,
     `ranges=${encodeURIComponent(`${REQUIRED_TABS.CONSULTAS}!A2:T2500`)}`,
     `ranges=${encodeURIComponent(`${REQUIRED_TABS.CONFIGURACION}!A2:B50`)}`,
   ].join('&');
@@ -458,25 +470,43 @@ export async function pullStoreFromSpreadsheet(
 
   const reservations: Reservation[] = rawReservations
     .filter((row) => row.length >= 8 && row[2])
-    .map((row, idx) => ({
-      id: row[0] || `res-sheet-${idx + 1}`,
-      codigoReserva: row[1] || `EPIM-${idx + 1000}`,
-      encounterId: row[2] || '',
-      year: Number(row[3]) || currentStore.config.publicYear,
-      parroquiaEpim: normalizeParroquiaName(row[4]),
-      arciprestazgo: normalizeArciprestazgoName(row[5]),
-      fechasEpim: row[6] || '',
-      nombreNovia: row[7] || '',
-      nombreNovio: row[8] || '',
-      documentoIdentidad: row[9] || '',
-      telefonoPareja: cleanFormulaError(row[10]),
-      correoPareja: row[11] || '',
-      parroquiaMatrimonio: row[12]?.trim() ? normalizeParroquiaName(row[12]) : '',
-      fechaPrevistaBoda: row[13] || '',
-      observaciones: row[14] || '',
-      estado: row[15] === 'cancelada' ? 'cancelada' : 'confirmada',
-      createdAt: row[16] || new Date().toISOString(),
-    }));
+    .map((row, idx) => {
+      const cedulaNovia = cleanFormulaError(row[17]);
+      const cedulaNovio = cleanFormulaError(row[18]);
+      const telefonoNovia = cleanFormulaError(row[19]);
+      const telefonoNovio = cleanFormulaError(row[20]);
+      const rawParMat = (row[12] || '').trim();
+      return {
+        id: row[0] || `res-sheet-${idx + 1}`,
+        codigoReserva: row[1] || `EPIM-${idx + 1000}`,
+        encounterId: row[2] || '',
+        year: Number(row[3]) || currentStore.config.publicYear,
+        parroquiaEpim: normalizeParroquiaName(row[4]),
+        arciprestazgo: normalizeArciprestazgoName(row[5]),
+        fechasEpim: row[6] || '',
+        nombreNovia: row[7] || '',
+        nombreNovio: row[8] || '',
+        cedulaNovia: cedulaNovia || undefined,
+        cedulaNovio: cedulaNovio || undefined,
+        documentoIdentidad:
+          row[9] || [cedulaNovia, cedulaNovio].filter(Boolean).join(' / '),
+        telefonoNovia: telefonoNovia || undefined,
+        telefonoNovio: telefonoNovio || undefined,
+        telefonoPareja:
+          cleanFormulaError(row[10]) ||
+          [telefonoNovia, telefonoNovio].filter(Boolean).join(' / '),
+        correoPareja: row[11] || '',
+        parroquiaMatrimonio: rawParMat
+          ? rawParMat.toLowerCase().startsWith('otra parroquia')
+            ? rawParMat
+            : normalizeParroquiaName(rawParMat)
+          : '',
+        fechaPrevistaBoda: row[13] || '',
+        observaciones: row[14] || '',
+        estado: row[15] === 'cancelada' ? 'cancelada' : 'confirmada',
+        createdAt: row[16] || new Date().toISOString(),
+      };
+    });
 
   const inquiries: Inquiry[] = rawInquiries
     .filter((row) => row.length >= 2 && row[1])

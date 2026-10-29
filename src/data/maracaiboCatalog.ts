@@ -196,6 +196,7 @@ export function normalizeArciprestazgoName(raw?: string): string {
 export function normalizeParroquiaName(raw?: string): string {
   const trimmed = (raw || '').trim();
   if (!trimmed) return '';
+  if (/^otra\s+parroquia\b/i.test(trimmed)) return trimmed;
 
   const stripped = trimmed.replace(/^(?:parroquia\s+)+/i, '').trim();
   if (!stripped) return '';
