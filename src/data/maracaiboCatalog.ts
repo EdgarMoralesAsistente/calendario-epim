@@ -109,6 +109,7 @@ export const MARACAIBO_ARCIPRESTAZGOS: ArciprestazgoGroup[] = [
       'Parroquia Santísimo Salvador. El Callao',
       'Parroquia Santo Domingo de Guzmán',
       'Parroquia Transfiguración del Señor. Los Cortijos',
+      'Rectoría Jesús de la Buena Esperanza',
     ],
   },
   {
@@ -190,24 +191,43 @@ export function normalizeArciprestazgoName(raw?: string): string {
 }
 
 /**
- * Ensures every parish name explicitly begins with "Parroquia " and matches the
- * canonical spelling in MARACAIBO_ARCIPRESTAZGOS whenever applicable.
+ * Ensures every parish name explicitly begins with "Parroquia " (or "Rectoría " when
+ * the community is a Rectoría) and matches the canonical spelling in MARACAIBO_ARCIPRESTAZGOS.
  */
 export function normalizeParroquiaName(raw?: string): string {
   const trimmed = (raw || '').trim();
   if (!trimmed) return '';
   if (/^otra\s+parroquia\b/i.test(trimmed)) return trimmed;
 
-  const stripped = trimmed.replace(/^(?:parroquia\s+)+/i, '').trim();
-  if (!stripped) return '';
+  const strippedParroquia = trimmed.replace(/^(?:parroquia\s+)+/i, '').trim();
+  if (!strippedParroquia) return '';
 
-  const targetCandidate = `Parroquia ${stripped}`.toLowerCase();
+  // Direct match against canonical catalog entries (including Rectorías)
+  const lowerTrimmed = trimmed.toLowerCase();
+  const lowerStripped = strippedParroquia.toLowerCase();
+  const targetParroquiaCandidate = `parroquia ${lowerStripped}`;
+  const targetRectoriaCandidate = `rectoría ${lowerStripped}`;
+
   for (const group of MARACAIBO_ARCIPRESTAZGOS) {
-    const found = group.parroquias.find((p) => p.toLowerCase() === targetCandidate);
+    const found = group.parroquias.find((p) => {
+      const lp = p.toLowerCase();
+      return (
+        lp === lowerTrimmed ||
+        lp === lowerStripped ||
+        lp === targetParroquiaCandidate ||
+        lp === targetRectoriaCandidate
+      );
+    });
     if (found) return found;
   }
 
-  return `Parroquia ${stripped}`;
+  // Preserve Rectoría nomenclature without prepending "Parroquia "
+  if (/^rector[ií]a\b/i.test(strippedParroquia)) {
+    const rest = strippedParroquia.replace(/^rector[ií]a\s+/i, '').trim();
+    return rest ? `Rectoría ${rest}` : 'Rectoría';
+  }
+
+  return `Parroquia ${strippedParroquia}`;
 }
 
 export function getShortArciprestazgoLabel(arciprestazgo: string): string {
